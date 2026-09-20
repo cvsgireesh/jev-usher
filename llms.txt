@@ -10,7 +10,8 @@ installed Claude CLI. JEV calls use TypeSafe's hosted service.
 
 Do not infer savings from selection counts alone. Read the integration and privacy
 documents before using the launcher on private work. The launcher chooses the
-model only for a new session; prompt-hook routing hints remain advisory.
+model only for a new session and keeps Claude's configured model when JEV is
+uncertain or unavailable; prompt-hook routing hints remain advisory.
 The compaction library does not replace native Claude compaction.
 
 ## Start here

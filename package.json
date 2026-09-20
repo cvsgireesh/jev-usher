@@ -13,7 +13,8 @@
     }
   },
   "files": [
-    "dist",
+    "dist/*.js",
+    "dist/*.d.ts",
     "bin",
     "README.md",
     "LICENSE",
@@ -22,7 +23,11 @@
     "CONTRIBUTING.md",
     "SECURITY.md",
     "llms.txt",
-    "docs",
+    "docs/architecture.md",
+    "docs/claude-code.md",
+    "docs/local-ui.md",
+    "docs/privacy.md",
+    "docs/reference.md",
     "hooks",
     "ui",
     ".claude-plugin"

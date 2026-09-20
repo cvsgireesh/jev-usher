@@ -58,7 +58,9 @@ test data. Save generated results outside the repository.
   depend on undocumented Claude internals. Command hooks must use the documented
   JSON contract and keep diagnostics off stdout.
 - Launcher routing applies only to new sessions. Preserve explicit model choices
-  and resumed conversations; uncertain routing must retain the configured fallback.
+  and resumed conversations. Uncertain or unavailable routing must omit the model
+  override so Claude retains its configured model. The UI keeps its selected
+  baseline model when routing is uncertain or unavailable.
 - Keep the local UI on loopback. Never return configured API keys to the browser
   or put them in URLs, logs, or browser storage. Do not add telemetry.
 - Distinguish estimated text reduction, actual model usage, task correctness,

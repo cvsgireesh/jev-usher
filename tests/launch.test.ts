@@ -241,12 +241,34 @@ describe("launchClaude", () => {
     expect(f.output.join("")).not.toMatch(/user-owned/);
   });
 
-  it("preserves Claude defaults under --no-route and uses Opus when JEV is unavailable", async () => {
+  it("preserves Claude defaults under --no-route", async () => {
     const f = await fixture();
     await launchClaude(["--no-route", "Task"], f.dependencies);
     expect(f.spawned[0]!.args).not.toContain("--model");
+  });
+
+  it.each(["missing-key", "low-confidence", "low-probability", "unknown-tier", "provider-error", "oversized-prompt"])("leaves Claude's configured model intact when routing cannot be trusted: %s", async reason => {
+    const provider = reason === "missing-key" ? undefined
+      : reason === "provider-error" ? { model: DEFAULT_MODEL, evaluate: vi.fn().mockRejectedValue(new Error("synthetic provider failure")) }
+      : decision(reason === "unknown-tier" ? "unknown" : "trivial", reason === "low-confidence" ? 0.85 : 0.99, reason === "low-probability" ? 0.85 : 0.99).provider;
+    const f = await fixture(provider);
+    const settingsPath = await f.settings({ model: "sonnet", effortLevel: "high" });
+    const before = await readFile(settingsPath, "utf8");
+    const prompt = reason === "oversized-prompt" ? "x".repeat(20_001) : "Task";
+    expect(await launchClaude([prompt], f.dependencies)).toBe(0);
+    expect(f.spawned[0]!.args.some(arg => arg === "--model" || arg.startsWith("--model="))).toBe(false);
+    expect(f.spawned[0]!.args).not.toContain("--settings");
+    expect(await readFile(settingsPath, "utf8")).toBe(before);
+    expect(f.output.join("")).toContain("keeping Claude's configured model");
+  });
+
+  it("still applies a confident route over a saved model without changing the settings file", async () => {
+    const f = await fixture(decision("trivial").provider);
+    const settingsPath = await f.settings({ model: "opus" });
     await launchClaude(["Task"], f.dependencies);
-    expect(f.spawned[1]!.args).toContain("opus");
+    expect(f.spawned[0]!.args).toContain("--model");
+    expect(f.spawned[0]!.args).toContain("haiku");
+    expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({ model: "opus" });
   });
 
   it("does not duplicate a supplied plugin directory, including a symlink alias", async () => {

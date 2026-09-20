@@ -18,9 +18,10 @@ node /absolute/path/to/jevusher/bin/jevusher.mjs claude "Check the next failure"
 
 The launcher sends the initial prompt to JEV and selects a Claude model through
 the official `--model` option. Confident simple tasks use Haiku, bounded mechanical
-work uses Sonnet, and difficult or uncertain work uses Opus. Both confidence and
-selected-class probability must reach 0.9 for routing to be trusted. The Opus
-fallback favors capability and can cost more than your configured model.
+work uses Sonnet, and difficult work uses Opus. Both confidence and selected-class
+probability must reach 0.9 for routing to be trusted. If JEV is uncertain or
+unavailable, the launcher omits the model override so Claude uses its configured
+model. Missing keys, timeouts, and oversized routing prompts follow the same rule.
 
 Explicit model arguments, `ANTHROPIC_MODEL`, and resumed conversations retain
 their model selection. Use `--no-route` to opt out of routing. Options after `--`

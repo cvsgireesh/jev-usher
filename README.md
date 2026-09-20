@@ -57,9 +57,9 @@ Start a new Claude session with automatic model routing and recoverable filterin
 node /absolute/path/to/jevusher/bin/jevusher.mjs claude "Find the cause of the retry failure"
 ```
 
-JEV judges the launch prompt and selects Haiku, Sonnet, or Opus. Uncertain or
-unavailable routing falls back to Opus, which can cost more than your configured
-model. Explicit `--model` arguments and `ANTHROPIC_MODEL` take precedence;
+JEV judges the launch prompt and selects Haiku, Sonnet, or Opus when confident.
+Uncertain or unavailable routing keeps Claude's configured model. Explicit
+`--model` arguments and `ANTHROPIC_MODEL` take precedence;
 `--no-route` keeps Claude's configured model. Resumed conversations keep their
 model selection. Routing applies at session start and does not change models
 between turns. Pass Claude options after `--`:

@@ -149,10 +149,10 @@ export async function launchClaude(argv: string[], dependencies: LaunchDependenc
       write("[jevusher] Sending the launch prompt to TypeSafe JEV for model selection.\n");
     }
     const result = await selectModel(parsed.prompt, { apiKey: env.JEV_API_KEY ?? env.TYPESAFE_API_KEY ?? "", provider: dependencies.provider });
-    model = result.selectedModel;
+    model = result.trusted ? result.selectedModel : undefined;
     write(result.trusted
       ? `[jevusher] Launch model: ${model} (JEV confidence ${result.confidence!.toFixed(2)}). This choice applies to this launch only.\n`
-      : "[jevusher] Routing was uncertain or unavailable; using the Opus fallback.\n");
+      : "[jevusher] Routing was uncertain or unavailable; keeping Claude's configured model.\n");
   }
   if (model && !parsed.modelAlreadyForwarded) args.push("--model", model);
   env.JEVUSHER_FILTER ??= "1";
