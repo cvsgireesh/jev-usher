@@ -1,29 +1,14 @@
 # jev-usher — model routing and context admission for Claude Code
 
-**26 live paired comparisons passed their task checks: 13 synthetic tasks tested
-with filtering alone and with routing plus filtering.**
+**The doorman for your context window.**
 
-The doorman for your context window. jev-usher routes clear tasks to a suitable
-Claude model and filters noisy tool output, with originals kept for recovery.
-TypeSafe's JEV judges relevance; deterministic rules decide what to send.
+jev-usher routes clear tasks to a suitable Claude model and filters noisy tool
+output, with originals kept for recovery. TypeSafe's JEV judges relevance;
+deterministic rules decide what to send.
 
-| Mode | Whole-run Claude tokens, without → with | Tokens: lower / unchanged / higher | Total elapsed time, without → with |
-|---|---|---|---|
-| Filtering; Sonnet on both sides | 105,067 → 101,792 (**3.1% fewer**) | 4 / 7 / 2 | 49.834 → 60.333 s (**21.1% longer**) |
-| Routing + filtering; Sonnet baseline | 105,098 → 102,650 (**2.3% fewer**) | 6 / 5 / 2 | 51.283 → 67.838 s (**32.3% longer**) |
-
-Each row totals 13 pairs. Token counts include input, output, and cache activity;
-time includes startup, hooks, recovery, and routing where enabled. Filtering was
-slower in 11 pairs and faster in two. Combined mode was slower in all 13 pairs.
-No pair reduced both tokens and time; this suite does not demonstrate a speed win.
-
-All 52 answers passed the task checks. **Passing a task check does not mean the
-optimization helped.** Median token change was zero in both modes, and recovery
-increased usage in four pairs. These are single-pass synthetic results, not a
-savings or reliability guarantee. [Results and reproduction](docs/results.md).
-
-Try it with the local comparison UI, launch a Claude Code session, or use the
-TypeScript library in your own agent.
+Use it through Claude Code, the local comparison UI, or the TypeScript library.
+See [measured results and tradeoffs](docs/results.md) for token use, latency,
+and test methodology.
 
 ```text
 original tool output → JEV judgments → deterministic policy → selected context
@@ -172,7 +157,7 @@ retries, output, prompt caching, and task quality also matter. Compare completed
 tasks; API dollar estimates are not subscription savings.
 
 **Does everything stay local?** No. The UI and hooks run locally, but text chosen
-for evaluation is sent to TypeSafe. Claude tests also send their synthetic task
+for evaluation is sent to TypeSafe. Claude tests also send the provided test task
 inputs to Anthropic. No API key is needed for offline tests.
 
 **Does it replace Claude's memory, tool search, or prompt cache?** No. It works
@@ -188,7 +173,7 @@ use the selected text.
 ```bash
 npm run check          # offline tests, typecheck, and build
 npm run test:package   # install and exercise a packed artifact
-# Optional paid evaluation with synthetic fixtures:
+# Optional paid evaluation with provided test fixtures:
 npm run eval:live -- --live --out /tmp/jev-usher-evaluation.json
 npm run eval:claude -- --live --out /tmp/jev-usher-claude.json
 ```
