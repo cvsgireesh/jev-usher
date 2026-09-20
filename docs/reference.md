@@ -1,7 +1,8 @@
 # Reference
 
-Every lens takes a plain object and returns typed verdicts with the score, the confidence, and the
-reason — so you can log and tune rather than trust.
+Every lens takes a plain object and returns typed decisions. Scores, probabilities,
+confidence, and fallback reasons are available where relevant to the lens. They
+support inspection and evaluation; none proves that a decision is correct.
 
 ## `Usher.admit` — J3
 
@@ -110,7 +111,7 @@ new Jevusher({
   baseUrl,         // default https://api.typesafe.ai/v1
   model,           // default jev-1.13.0
   timeoutMs,       // default 30_000
-  maxRetries,      // default 3 — retries 429 and 5xx with backoff
+  maxRetries,      // default 3 — retries selected transient statuses with backoff
   provider,        // swap the whole transport, e.g. a stub in tests
   prices,          // { jev: 0.042, target: 15 } for the ledger
 });
@@ -122,16 +123,21 @@ new Jevusher({
 jevusher install [--global]    wire the Claude Code hooks
 jevusher uninstall [--global]  remove only Jevusher hooks
 jevusher doctor                key, connectivity, store contents
-jevusher report                what the lenses have saved
+jevusher report                estimated selected volume and JEV usage
+jevusher ui [--port 4318]       local test UI on 127.0.0.1
+jevusher claude [--no-route] [--model MODEL] "prompt" [-- Claude options]
 
-jevusher hook <event>          user-prompt-submit | post-tool-use | stop
+jevusher hook <event>          user-prompt-submit | pre-tool-use | post-tool-use | stop
 jevusher route|admit|gate|screen|stop|compact    JSON in, JSON out
 ```
 
 ```bash
-echo '{"goal":"g","candidates":[{"id":"a","text":"..."}]}' | npx jevusher admit
-echo '{"turn":"rename the getter"}' | npx jevusher route
+echo '{"goal":"g","candidates":[{"id":"a","text":"..."}]}' | node bin/jevusher.mjs admit
+echo '{"turn":"rename the getter"}' | node bin/jevusher.mjs route
 ```
+
+The examples above run from a built checkout. See [local UI](local-ui.md) and
+[Claude Code setup](claude-code.md) for configuration and privacy boundaries.
 
 ## Optional decision cache
 

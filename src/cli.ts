@@ -6,7 +6,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { Jevusher } from "./pipeline.js";
 import { Ledger, type LedgerEntry } from "./ledger.js";
-import { onPostToolUse, onStop, onUserPromptSubmit, type HookInput } from "./hook.js";
+import { onPostToolUse, onPreToolUse, onStop, onUserPromptSubmit, type HookInput } from "./hook.js";
 import { jevusherHome, ledgerPath, readJsonl } from "./store.js";
 
 const USAGE = `jevusher — the doorman for your context window
@@ -15,9 +15,11 @@ const USAGE = `jevusher — the doorman for your context window
   jevusher uninstall [--global]   remove Jevusher hooks, keeping other settings
   jevusher report                 estimated context volume and provider usage
   jevusher doctor                 check key, connectivity, and store files
+  jevusher ui [--port 4318]        local live JEV / Claude comparison UI
+  jevusher claude <prompt>        start Claude with JEV model routing and filtering
 
   jevusher hook <event>           run a hook; reads hook JSON on stdin
-                                  events: user-prompt-submit, post-tool-use, stop
+                                  events: user-prompt-submit, pre-tool-use, post-tool-use, stop
 
   jevusher route                  JSON on stdin -> routing decision
   jevusher admit                  JSON on stdin -> admission decision
@@ -32,6 +34,9 @@ Environment:
   JEVUSHER_MEMORY    JSONL of {id,text} recalled memories
   JEVUSHER_CATALOG   JSONL of {id,name,summary,detail?} capabilities
   JEVUSHER_GOAL      the goal the Stop gate checks against
+  JEVUSHER_FILTER    set to 1 to enable recoverable tool-output filtering
+  JEVUSHER_FILTER_NATIVE comma-separated native tools (Read,Bash,Grep,Glob)
+  JEVUSHER_FILTER_TOOLS exact read-only MCP tool names allowed for filtering
 `;
 
 export async function main(argv: string[]): Promise<number> {
@@ -52,6 +57,21 @@ export async function main(argv: string[]): Promise<number> {
       return report();
     case "doctor":
       return doctor();
+    case "claude": {
+      const { launchClaude } = await import('./launch.js');
+      return launchClaude(rest);
+    }
+    case "ui": {
+      if (rest.length && (rest.length !== 2 || rest[0] !== '--port' || !/^\d+$/.test(rest[1]!))) throw new Error('Usage: jevusher ui [--port 4318]');
+      const { startUi } = await import('./ui-server.js');
+      const server = await startUi({ port: rest[1] === undefined ? 4318 : Number(rest[1]) });
+      process.stdout.write(`Jevusher local test UI: ${server.url}\nUses live JEV credits and your local Claude subscription only when you start a test.\nPress Ctrl+C to stop. Keys and run results are not saved by the UI.\n`);
+      let closing = false;
+      const close = () => { if (!closing) { closing = true; void server.close().then(() => { process.exitCode = 0; }); } };
+      process.once('SIGINT', close);
+      process.once('SIGTERM', close);
+      return 0;
+    }
     case "hook":
       return hook(rest[0]);
     case "route":
@@ -92,6 +112,7 @@ async function readStdinJson<T>(): Promise<T> {
 async function hook(event: string | undefined): Promise<number> {
   const handlers = {
     "user-prompt-submit": onUserPromptSubmit,
+    "pre-tool-use": onPreToolUse,
     "post-tool-use": onPostToolUse,
     stop: onStop,
   } as const;
@@ -129,7 +150,7 @@ async function lens(name: string): Promise<number> {
 }
 
 async function report(): Promise<number> {
-  const stored = await readJsonl<LedgerEntry>(ledgerPath());
+  const stored = await readJsonl<LedgerEntry & { usageIncomplete?: boolean }>(ledgerPath());
   const entries = stored.filter(e => record(e) && typeof e.lens === "string" &&
     [e.offered, e.admitted, e.requests].every(n => typeof n === "number" && Number.isFinite(n) && n >= 0) &&
     record(e.jevUsage) && typeof e.jevUsage.input_tokens === "number" && e.jevUsage.input_tokens >= 0);
@@ -147,6 +168,7 @@ async function report(): Promise<number> {
     });
   }
   const summary = ledger.report();
+  const incomplete = entries.some(entry => entry.usageIncomplete === true);
 
   const rows = Object.entries(summary.byLens).map(([lens, data]) => ({
     lens,
@@ -171,6 +193,7 @@ async function report(): Promise<number> {
       `  Prices are defaults (jev $0.042/Mtok, target $15/Mtok input). These are\n` +
       `  estimates from a rough token count, not your invoice. Check both.\n\n`,
   );
+  if (incomplete) process.stdout.write('Some provider calls failed after work began. JEV totals and cost estimates above cover completed responses only; full provider usage is unknown.\n');
   return 0;
 }
 
@@ -205,7 +228,7 @@ async function doctor(): Promise<number> {
 
 async function install(global: boolean, remove = false): Promise<number> {
   const settingsPath = global
-    ? join(homedir(), ".claude", "settings.json")
+    ? join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "settings.json")
     : join(process.cwd(), ".claude", "settings.json");
   if (process.platform === "win32") throw new Error("Settings installation currently supports macOS and Linux; use the plugin on other platforms.");
   const executable = fileURLToPath(new URL("../bin/jevusher.mjs", import.meta.url));
@@ -217,6 +240,8 @@ async function install(global: boolean, remove = false): Promise<number> {
     "Configure memory.jsonl and catalog.jsonl under JEVUSHER_HOME. These records and\n" +
     "your prompt are sent to TypeSafe. Tool screening requires JEVUSHER_SCREEN=1;\n" +
     "MCP tools additionally require an exact-name JEVUSHER_MCP_TOOLS allowlist.\n" +
-    "Run jevusher doctor. Routing and skill hints are advisory. Stop is not installed.\n");
+    "Recoverable tool-output filtering requires JEVUSHER_FILTER=1. Filtering sends your\n" +
+    "session prompts and supported output to TypeSafe; originals stay in the local recovery store.\n" +
+    "Run jevusher doctor. Prompt-hook routing and skill hints are advisory; the claude launcher selects a model. Stop is not installed.\n");
   return 0;
 }

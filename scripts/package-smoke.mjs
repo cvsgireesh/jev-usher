@@ -13,6 +13,8 @@ try {
   assert.deepEqual(forbidden, []);
   assert(metadata.files.some(f => f.path === "dist/index.js"));
   assert(metadata.files.some(f => f.path === ".claude-plugin/plugin.json"));
+  assert(metadata.files.some(f => f.path === 'ui/index.html'));
+  assert(metadata.files.some(f => f.path === 'ui/app.js'));
   const consumer = join(temp, "consumer with spaces"); mkdirSync(consumer);
   writeFileSync(join(consumer, "package.json"), '{"private":true,"type":"module"}');
   execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", join(temp, metadata.filename)], { cwd: consumer, stdio: "pipe" });
@@ -37,5 +39,17 @@ try {
   assert.deepEqual(JSON.parse(readFileSync(settings, "utf8")), {});
   const imports = spawnSync(process.execPath, ["--input-type=module", "-e", "import { Jevusher, DecisionCache } from 'jevusher'; if (!Jevusher || !DecisionCache) process.exit(1)"], { cwd: consumer, env, encoding: "utf8" });
   assert.equal(imports.status, 0, imports.stderr);
-  console.log(`Package smoke passed: ${metadata.files.length} files, ${metadata.size} bytes. Clean install, exports, CLI, quoted hook command, and uninstall verified.`);
+  const ui = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    import {startUi} from './node_modules/jevusher/dist/ui-server.js';
+    const server=await startUi({port:0,apiKey:'',status:async()=>({available:false,authenticated:false,version:null,message:'offline smoke'})});
+    try {
+      const page=await fetch(server.url);
+      if(page.status!==200 || !(await page.text()).toLowerCase().includes('jevusher'))throw new Error('UI page missing');
+      if((await fetch(server.url+'/app.js')).status!==200)throw new Error('UI script missing');
+      const status=await (await fetch(server.url+'/api/status')).json();
+      if(status.jevConfigured || !status.scenarios.length)throw new Error('Invalid offline UI status');
+    } finally {await server.close();}
+  `], { cwd: consumer, env, encoding: 'utf8', timeout: 15_000 });
+  assert.equal(ui.status, 0, ui.stderr);
+  console.log(`Package smoke passed: ${metadata.files.length} files, ${metadata.size} bytes. Clean install, exports, CLI, local UI assets, quoted hooks, and uninstall verified.`);
 } finally { rmSync(temp, { recursive: true, force: true }); }

@@ -69,7 +69,12 @@ byte-preserving excerpts are not lossless compression.
 
 A screening verdict is advisory evidence. It never grants permission to execute
 instructions embedded in data. The library filter can remove blocked chunks;
-the shipped Claude hook only adds warnings. Neither is a complete security boundary.
+the Claude screening hook adds warnings. The separate opt-in admission hook can
+replace supported tool results after archiving their exact original text. It
+retains ambiguous material and bypasses unsupported formats, missing goals,
+failed provider calls, and recovery failures. See [Claude Code](claude-code.md)
+for the supported formats and recovery lifecycle. None of these classifiers is
+a complete security boundary.
 
 ## Accounting
 
@@ -77,6 +82,9 @@ The pipeline ledger records offered and selected text estimates plus reported
 JEV usage. Library savings are hypothetical until a harness applies the selection.
 The Claude prompt adapter records all injected text as overhead because it does
 not remove existing Claude context. Screening has cost and no claimed savings.
+Tool admission compares the original result with the emitted replacement,
+including its recovery notice. This measures selected text size; it cannot prove
+that a particular Claude build consumed the replacement or completed the task.
 
 The ledger is not an invoice. Failed batch groups can omit usage from successful
 sibling calls; transport retries may also cost more than the final response shows.

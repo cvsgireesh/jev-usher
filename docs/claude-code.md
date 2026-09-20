@@ -4,6 +4,35 @@ The adapter uses documented command hooks: JSON arrives on stdin and a JSON
 object is written to stdout. Diagnostics go to stderr. It does not depend on
 reverse-engineered private APIs or generated function-hook declarations.
 
+Use Claude Code 2.1.278 or newer. The local comparison UI checks this minimum;
+older clients may ignore replacement output. Rerun comparisons after upgrading.
+
+## Start with automatic routing
+
+```bash
+node /absolute/path/to/jevusher/bin/jevusher.mjs claude "Investigate the retry failure"
+node /absolute/path/to/jevusher/bin/jevusher.mjs claude --model sonnet "Explain this module"
+node /absolute/path/to/jevusher/bin/jevusher.mjs claude --no-route "Continue the investigation"
+node /absolute/path/to/jevusher/bin/jevusher.mjs claude "Check the next failure" -- --continue
+```
+
+The launcher sends the initial prompt to JEV and selects a Claude model through
+the official `--model` option. Confident simple tasks use Haiku, bounded mechanical
+work uses Sonnet, and difficult or uncertain work uses Opus. Both confidence and
+selected-class probability must reach 0.9 for routing to be trusted. The Opus
+fallback favors capability and can cost more than your configured model.
+
+Explicit model arguments, `ANTHROPIC_MODEL`, and resumed conversations retain
+their model selection. Use `--no-route` to opt out of routing. Options after `--`
+are forwarded to Claude. Authentication, permissions, and settings remain owned
+by the official CLI. The launcher enables filtering for its child process unless
+`JEVUSHER_FILTER=0` is set; it does not write global settings.
+
+The launcher checks for existing Jevusher hooks before adding its local plugin.
+Older settings installations without the recovery guard or current tool matchers
+must be updated with `install`, or removed with `uninstall`. When using an
+installed plugin, keep that plugin updated as well as the launcher checkout.
+
 ## Install and remove
 
 Build first with `npm ci && npm run check`. Load the checkout with:
@@ -70,15 +99,109 @@ baseline; a full-catalog replay is not equivalent to a normal Claude session.
 
 | Event | Input used | Output and effect |
 |---|---|---|
-| `UserPromptSubmit` | `prompt`, configured stores | `hookSpecificOutput.additionalContext`: selected memory and advisory hints |
-| `PostToolUse` | `tool_name`, text in `tool_response` | Optional warning in `additionalContext`; no replacement |
+| `UserPromptSubmit` | `prompt`, configured stores | Optional selected memory and advisory hints; captures session goals when filtering is enabled |
+| `PreToolUse` | Native `Edit`/`Write` target and outstanding Read archives | Denies editing from a filtered Read until its complete original has been read |
+| `PostToolUse` | `tool_name`, supported `tool_response` | Opt-in result replacement with recovery, or optional screening warning |
 | `Stop` | `last_assistant_message`, `stop_hook_active`, configured goal | May return `decision: block` to request continuation; not installed |
 
-No prompt evaluation runs if both stores are empty. It does not automatically
-switch Claude's model or hide existing skill/tool schemas. `Stop` evaluates the
+No prompt evaluation runs if both stores are empty. Filtering may still capture
+the prompt locally for later tool-result relevance checks. Prompt hooks do not
+switch Claude's model or hide existing skill/tool schemas. The launcher controls
+the model only at startup. `Stop` evaluates the
 last response, not independent execution evidence; it is unsuitable as a release
 approval mechanism. It stands down when already active or when the judgment says
 the agent should stop. An optional installation must set `JEVUSHER_GOAL`.
+
+### Recoverable tool-output filtering
+
+The launcher enables filtering. For a directly loaded plugin or settings hooks,
+enable it in the environment inherited by Claude:
+
+```bash
+export JEVUSHER_FILTER=1
+claude --plugin-dir /absolute/path/to/jevusher
+```
+
+The adapter filters supported text `Read` results, including documents, source
+code, and configuration files such as `.ts`, `.js`, `.py`, `.go`, `.rs`, `.json`,
+`.yaml`, and `.toml`.
+It excludes instruction, memory, and skill files, `.claude`, `.agents`, and
+`.codex` paths, and its own recovery files, including symlink aliases. Error,
+binary, and unknown output shapes pass through.
+
+Supported native outputs also include:
+
+- `Bash`: stdout from recognized simple diagnostic commands, such as `cat`,
+  `rg`, Git inspection, and test commands. Compound or unknown commands, stderr,
+  error/warning signals, images, and recognized credential output pass through.
+  This operates after execution; it does not authorize commands or make scripts
+  read-only.
+- `Grep`: text matches with source locations or filename results. Aggregate count
+  output passes through. Returned totals and other metadata remain intact.
+- `Glob`: filename lists. Omitted paths remain in the recovery copy; returned
+  lists are marked truncated and contain only actual paths.
+
+Limit native filtering with `JEVUSHER_FILTER_NATIVE`, a comma-separated list.
+The default is `Read,Bash,Grep,Glob`. For example,
+`JEVUSHER_FILTER_NATIVE=Read,Grep` leaves Bash and Glob unchanged. An empty value
+disables native filtering. MCP tools use their separate allowlist.
+
+To also permit specific read-only MCP tools, use their exact names:
+
+```bash
+export JEVUSHER_FILTER_TOOLS='mcp__docs__fetch'
+```
+
+Only MCP responses containing a single text block and no structured or media
+content are eligible. Choose tools whose output is safe to shorten. The allowlist
+does not make a tool read-only or undo its side effects.
+
+The hook uses prompts captured from `UserPromptSubmit` in the same session and
+working directory. It accumulates up to 8 KB of user goals, valid for 24 hours
+after the last captured prompt, and passes through when the goal is missing,
+expired, or too large. Subagent calls are not filtered. Start a fresh session
+after enabling filtering so the first
+prompt can establish its goal.
+
+Only outputs between 4 KB and 120 KB are considered, in at most 64 whole-line
+chunks. A chunk is eligible for omission only with relevance score at most 0.1,
+confidence at least 0.9, and probability of unrelated text at least 0.95.
+Ambiguous chunks remain. A `Read` replacement retains one contiguous source
+window with its line numbers and source metadata. Replacement requires a
+reduction of at least 20% and 1 KB, including the recovery notice.
+
+Before replacing any output, the hook saves the original text under:
+
+```text
+~/.claude/jevusher/recovery/<session-hash>/<id>.txt
+```
+
+`JEVUSHER_HOME` changes that root. The result includes the absolute recovery path
+and tells Claude to read it if omitted information is needed, or before edits and
+complete summaries. Recovery files bypass filtering. You can read the path
+yourself to inspect the complete original. If saving fails, the original result
+passes through unchanged.
+
+After a filtered Read, Jevusher records a recovery requirement for that source.
+Native `Edit` and `Write` calls are denied until Claude reads the complete,
+byte-identical archived original from its beginning. Partial archive reads do
+not clear the requirement. Repeated source reads pass through while a recovery
+requirement is outstanding. This guard does not intercept edits performed by
+shell commands or external tools. Excerpts are for inspection; recover before
+making changes or drawing conclusions about an entire file.
+
+Session and recovery directories must be real owner-only directories (mode
+`0700`); otherwise filtering passes through. Newly created originals use mode
+`0600`.
+
+These files are private local copies of tool output. They remain until you delete
+them so recovery references keep working. Do not remove a recovery file while an
+active conversation may need it. See [data handling](privacy.md) before filtering
+private material.
+
+This is relevance selection, not a security filter. A confidently wrong omission
+can still remove a necessary fact. Evaluate representative tasks with and without
+filtering, including tasks that require recovery.
 
 ### External screening
 
@@ -106,15 +229,20 @@ call, hide its output, or enforce a permission decision.
 Current Claude Code documents `PostToolUse.hookSpecificOutput.updatedToolOutput`
 for replacing a result before the next model reads it. Replacements must match
 the tool's output shape; invalid built-in tool replacements are ignored. The
-older `updatedMCPToolOutput` field is MCP-specific. This repository does **not**
-yet emit either replacement field. The tool has already executed, and telemetry
-may already contain its original output.
+older `updatedMCPToolOutput` field is MCP-specific. Jevusher emits replacements
+only for the narrow formats described above. The tool has already executed, and
+telemetry may already contain its original output.
 
 `PreToolUse` can deny or modify a call before execution. `PreCompact` can veto
 compaction but does not document a replacement-history field. `Stop` runs after
 Claude finishes responding; blocking it requests more work, not early termination.
 The project makes no compatibility claim for undocumented function-hook APIs.
 [Authoritative hooks contract](https://code.claude.com/docs/en/hooks)
+
+Jevusher leaves native compaction, prompt caching, skill loading, MCP tool search,
+and effort settings under Claude's control. It does not rewrite the system prompt,
+route subagents, or change the main model between turns. The library's compaction
+and capability decisions require an application that owns those inputs.
 
 ## Failure and verification
 

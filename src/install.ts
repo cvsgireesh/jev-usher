@@ -5,7 +5,7 @@ import { record } from "./validation.js";
 
 function ours(handler: unknown): boolean {
   return record(handler) && handler.type === "command" && typeof handler.command === "string" &&
-    (/\bjevusher(?:\.mjs)?['"]? hook (user-prompt-submit|post-tool-use|stop)$/.test(handler.command));
+    (/\bjevusher(?:\.mjs)?['"]? hook (user-prompt-submit|pre-tool-use|post-tool-use|stop)$/.test(handler.command));
 }
 
 /** Preserve unrelated hooks and settings; refuse malformed input before writing. */
@@ -23,7 +23,7 @@ export async function configureHooks(path: string, command: string, remove = fal
     const parsed: unknown = original === undefined ? {} : JSON.parse(original);
     if (!record(parsed) || parsed.hooks !== undefined && !record(parsed.hooks)) throw new TypeError("Invalid Claude settings; left unchanged");
     const hooks: Record<string, unknown> = parsed.hooks as Record<string, unknown> ?? {};
-    for (const event of ["UserPromptSubmit", "PostToolUse", "Stop"]) {
+    for (const event of ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"]) {
       const list = hooks[event] ?? [];
       if (!Array.isArray(list) || list.some(g => !record(g) || !Array.isArray(g.hooks))) {
         throw new TypeError(`Invalid ${event} hooks; settings left unchanged`);
@@ -37,7 +37,8 @@ export async function configureHooks(path: string, command: string, remove = fal
     if (!remove) {
       for (const [event, argument, matcher] of [
         ["UserPromptSubmit", "user-prompt-submit", undefined],
-        ["PostToolUse", "post-tool-use", "^(WebFetch|WebSearch|mcp__.*)$"],
+        ["PreToolUse", "pre-tool-use", "^(Edit|Write)$"],
+        ["PostToolUse", "post-tool-use", "^(Read|Bash|Grep|Glob|WebFetch|WebSearch|mcp__.*)$"],
       ] as const) {
         const list = (hooks[event] ??= []) as unknown[];
         list.push({ ...(matcher && { matcher }), hooks: [{ type: "command", command: `${command} hook ${argument}`, timeout: 20 }] });

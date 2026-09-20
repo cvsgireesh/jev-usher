@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { main } from "../src/cli.js";
@@ -33,5 +33,33 @@ describe("doctor", () => {
     await writeFile(join(home, "ledger.jsonl"), "null\n[]\n{}\n");
     vi.spyOn(process.stdout, "write").mockReturnValue(true);
     expect(await main(["report"])).toBe(0);
+  });
+});
+
+describe("global settings installation", () => {
+  it.each([true, false])("installs and uninstalls in Claude's configured directory (override=%s)", async override => {
+    const fixtureHome = join(home, "isolated home");
+    const defaultRoot = join(fixtureHome, ".claude");
+    const customRoot = join(home, "custom Claude config");
+    await Promise.all([mkdir(defaultRoot, { recursive: true }), mkdir(customRoot)]);
+    vi.stubEnv("HOME", fixtureHome);
+    vi.stubEnv("CLAUDE_CONFIG_DIR", override ? customRoot : undefined);
+    const original = { permissions: { deny: ["Bash(rm *)"] }, hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: "unrelated-hook" }] }] } };
+    const target = join(override ? customRoot : defaultRoot, "settings.json");
+    const untouched = join(override ? defaultRoot : customRoot, "settings.json");
+    await writeFile(target, JSON.stringify(original));
+    await writeFile(untouched, '{"untouched":true}');
+    const fetch = vi.fn(); vi.stubGlobal("fetch", fetch);
+    vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    expect(await main(["install", "--global"])).toBe(0);
+    const installed = JSON.parse(await readFile(target, "utf8"));
+    expect(installed.permissions).toEqual(original.permissions);
+    expect(installed.hooks.UserPromptSubmit).toHaveLength(2);
+    expect(installed.hooks.PreToolUse[0].matcher).toBe("^(Edit|Write)$");
+    expect(installed.hooks.PostToolUse[0].matcher).toContain("Bash");
+    expect(await main(["uninstall", "--global"])).toBe(0);
+    expect(JSON.parse(await readFile(target, "utf8"))).toEqual(original);
+    expect(await readFile(untouched, "utf8")).toBe('{"untouched":true}');
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

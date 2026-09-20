@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Setup and configuration
+    url: https://github.com/cvsgireesh/jevusher/blob/main/docs/claude-code.md
+    about: Installation, supported hooks, data handling, and recovery.
+  - name: Security reporting
+    url: https://github.com/cvsgireesh/jevusher/blob/main/SECURITY.md
+    about: Read this before sharing a sensitive vulnerability.

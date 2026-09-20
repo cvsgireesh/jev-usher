@@ -1,0 +1,31 @@
+# Jevusher
+
+> Open-source model routing and context admission for Claude Code and TypeScript agents, powered by TypeSafe JEV.
+
+Jevusher selects a model at Claude session startup and keeps relevant tool text
+with an original copy for recovery. JEV supplies typed judgments; deterministic
+policies apply budgets, thresholds, and failure behavior. The local test UI
+compares context filtering, model routing, or both using a JEV API key and the
+installed Claude CLI. JEV calls use TypeSafe's hosted service.
+
+Do not infer savings from selection counts alone. Read the integration and privacy
+documents before using the launcher on private work. The launcher chooses the
+model only for a new session; prompt-hook routing hints remain advisory.
+The compaction library does not replace native Claude compaction.
+
+## Start here
+
+- [README](https://github.com/cvsgireesh/jevusher/blob/main/README.md): purpose, installation, examples, and limitations.
+- [Claude Code setup](https://github.com/cvsgireesh/jevusher/blob/main/docs/claude-code.md): hooks, explicit inputs, configuration, and recovery.
+- [Local test UI](https://github.com/cvsgireesh/jevusher/blob/main/docs/local-ui.md): live JEV and local Claude comparisons.
+- [API reference](https://github.com/cvsgireesh/jevusher/blob/main/docs/reference.md): TypeScript lenses, configuration, and result types.
+- [Architecture](https://github.com/cvsgireesh/jevusher/blob/main/docs/architecture.md): data flow, resource limits, failure policy, and accounting.
+- [Data handling](https://github.com/cvsgireesh/jevusher/blob/main/docs/privacy.md): provider transmission and local storage.
+
+## Contribute
+
+- [Agent instructions](https://github.com/cvsgireesh/jevusher/blob/main/AGENTS.md): build commands, source map, and implementation invariants.
+- [Contributing](https://github.com/cvsgireesh/jevusher/blob/main/CONTRIBUTING.md): tests, changes, and release validation.
+- [Security](https://github.com/cvsgireesh/jevusher/blob/main/SECURITY.md): vulnerability reporting.
+- [Issues](https://github.com/cvsgireesh/jevusher/issues): bugs and feature requests.
+- [License](https://github.com/cvsgireesh/jevusher/blob/main/LICENSE): MIT.

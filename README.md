@@ -1,24 +1,33 @@
-<h1 align="center">Jevusher</h1>
-<p align="center"><b>The doorman for your context window.</b></p>
+# Jevusher — model routing and context admission for Claude Code
 
-Jevusher uses TypeSafe's JEV model to rank and select text before an expensive
-model reads it. It provides a TypeScript library and a Claude Code plugin.
+**The doorman for your context window.**
 
-**Status: preview.** The library makes admission decisions; your agent must apply
-them. The current Claude Code adapter adds selected memories, capability hints,
-and optional screening warnings. It does not automatically replace tool results,
-change models, or replace Claude's compaction.
+Jevusher uses TypeSafe's JEV model to choose a Claude model for a new session and
+select useful tool output before Claude reads it. It provides a Claude Code
+launcher and plugin, a TypeScript library, and a local test UI for comparing
+model selection, context filtering, or both.
+
+Use it when tools return more text than a task needs. JEV scores relevance;
+Jevusher applies budgets and failure rules. Keep the original available, then
+measure whether the smaller input still lets Claude complete the task.
 
 ```text
-candidate text → JEV judgments → deterministic policy → selected context
-                     ↓                   ↓
-               uncertainty          budgets / fallback
+original tool output → JEV judgments → deterministic policy → selected context
+         │                                    │
+         └──────── original kept for recovery ┘
 ```
 
-## Try it from source
+**Status: preview.** The launcher enables routing and recoverable filtering;
+direct plugin and settings installations require filtering to be enabled
+separately. Filtering supports specific output formats and can omit useful
+information. Inspect decisions and compare answers in the UI before using it in
+ongoing work. Token reduction alone does not prove lower cost or unchanged quality.
 
-Node.js 20 or newer for the runtime; use a current Node 22 or 24 release to develop.
-A TypeSafe API key is required for live judgments. No key is needed for unit tests.
+## Quickstart: local test UI
+
+Requirements: Node.js 20 or newer, a [TypeSafe API key](https://docs.typesafe.ai/),
+and Claude Code 2.1.278 or newer signed in to your subscription for paired tests.
+Use a current Node 22 or 24 release to develop. Offline tests need no API key.
 
 ```bash
 git clone https://github.com/cvsgireesh/jevusher.git
@@ -26,10 +35,42 @@ cd jevusher
 npm ci
 npm run check
 export JEV_API_KEY='your-typesafe-key'
-node bin/jevusher.mjs doctor
+node bin/jevusher.mjs ui
 ```
 
-For Claude Code, load the built checkout as a plugin:
+Open `http://127.0.0.1:4318`. Choose a synthetic scenario and baseline Claude model,
+then compare context filtering, model routing, or both. The default compares
+Sonnet against combined routing and filtering. Inspect the JEV preview before
+running the paired Claude test.
+The UI starts no model calls until you run a test. JEV calls spend TypeSafe
+credits; paired Claude tests consume your subscription allowance.
+
+The UI runs on your computer. JEV judgments still use TypeSafe's hosted API, and
+Claude requests use Anthropic's service. Read the [local UI guide](docs/local-ui.md)
+and [data handling](docs/privacy.md) for the exact boundary.
+
+## Claude Code setup
+
+Start a new Claude session with automatic model routing and recoverable filtering:
+
+```bash
+node /absolute/path/to/jevusher/bin/jevusher.mjs claude "Find the cause of the retry failure"
+```
+
+JEV judges the launch prompt and selects Haiku, Sonnet, or Opus. Uncertain or
+unavailable routing falls back to Opus, which can cost more than your configured
+model. Explicit `--model` arguments and `ANTHROPIC_MODEL` take precedence;
+`--no-route` keeps Claude's configured model. Resumed conversations keep their
+model selection. Routing applies at session start and does not change models
+between turns. Pass Claude options after `--`:
+
+```bash
+node /absolute/path/to/jevusher/bin/jevusher.mjs claude "Continue the investigation" -- --continue
+```
+
+Set `JEVUSHER_FILTER=0` to keep launcher routing while disabling output filtering.
+
+To use Claude directly, load the checkout as a plugin:
 
 ```bash
 claude --plugin-dir /absolute/path/to/jevusher
@@ -39,29 +80,24 @@ Or install settings hooks in the project where you want them:
 
 ```bash
 node /absolute/path/to/jevusher/bin/jevusher.mjs install
-# Undo with the same executable:
-node /absolute/path/to/jevusher/bin/jevusher.mjs uninstall
+node /absolute/path/to/jevusher/bin/jevusher.mjs doctor
 ```
 
-Choose one installation method to avoid duplicate hook execution. Settings hooks
-use the installed local executable, with no package download at each turn.
-Keep the checkout at that path. See [Claude Code setup](docs/claude-code.md).
+Choose one method to avoid duplicate hooks. Settings hooks use the installed local
+executable; keep the checkout at that path. Run the same command with `uninstall`
+to remove them. Installation alone does not enable output filtering or screening.
+See [Claude Code configuration](docs/claude-code.md) for supported tools, explicit
+memory inputs, filtering, and recovery.
 
-**Data boundary:** configured memories, capabilities, and the prompt are sent to
-TypeSafe when the prompt hook runs. Tool-output screening is off by default.
-Enabling it sends selected external tool text to TypeSafe. This is a cloud model,
-not local inference. Read [data handling](docs/privacy.md) before enabling it on
-private work.
+## TypeScript example
 
-## Library
-
-After building, a local application can install the checkout with
-`npm install /absolute/path/to/jevusher` and import the package:
+After building, install the checkout into your application with
+`npm install /absolute/path/to/jevusher`:
 
 ```ts
 import { Jevusher } from "jevusher";
 
-const usher = new Jevusher({ prices: { jev: 0.042, target: 5 } });
+const usher = new Jevusher();
 const result = await usher.usher.admit({
   goal: "Find the widget service retry limit",
   candidates: [
@@ -71,72 +107,84 @@ const result = await usher.usher.admit({
   budget: 2000,
 });
 
-// Your agent passes result.admitted to its model and retains original sources.
+// Pass the selected text to your model; retain the originals for recovery.
 console.log(result.admitted, result.verdicts);
 ```
 
-| Component | Library behavior | Shipped Claude Code behavior |
+| Component | Library behavior | Claude Code integration |
 |---|---|---|
-| Router | Selects a configured model tier | Advisory hint only |
-| Gate | Shortlists capabilities, then selects | Adds a hint; does not remove Claude's skill catalog |
+| Filter | Screens and selects tool-output chunks | Recoverable Read, diagnostic Bash, Grep, Glob, and allowlisted MCP output filtering |
 | Usher | Selects supplied memory within a budget | Injects from an explicitly configured JSONL store |
-| Filter | Screens and selects tool-output chunks | Library only |
-| Compactor | Keeps, shortens, or drops text blocks | Library only |
+| Gate | Shortlists capabilities, then selects | Adds a hint; does not remove Claude's skill catalog |
+| Router | Selects a configured model tier | Launcher selects the session model; prompt-hook hints remain advisory |
+| Compactor | Keeps, shortens, or drops text blocks | Library only; does not replace native compaction |
+| Screen | Flags possible injected instructions | Opt-in warning; not a permission system |
 | StopGate | Recommends ending or continuing a loop | Optional completion check; not installed by default |
-| Screen | Flags possible injected instructions | Opt-in warning; original result remains visible |
 
-The plugin does not read Claude's private databases, discover your memories,
-override `CLAUDE.md`, or alter tool permissions. Current Claude Code supports
-output replacement through `PostToolUse`; that adapter is not implemented here.
-See the [integration contract](docs/claude-code.md).
+See the [API reference](docs/reference.md) for thresholds, budgets, and result types.
+The plugin does not discover private memories or override `CLAUDE.md` or configured
+permissions. After a filtered source read, it requires recovery of the original
+before a native Edit or Write. All admitted memory and capability records are explicit inputs.
 
-## Failure behavior
+## Limits and failure behavior
 
-- Memory admission keeps uncertain material **within the configured budget**.
-  A hard budget can still exclude useful material, including during outages.
-- Capability selection surfaces nothing when uncertain by default. Routing uses
-  the configured fallback tier.
-- Compaction retains uncertain blocks verbatim, even over `keepBudget`. Certain
-  blocks may be shortened or dropped. This is **lossy**, despite preserving the
-  characters that survive. `keepBudget` is not a total context limit.
-- Screening returns `unavailable` for missing or invalid answers. A `pass` means
-  nothing detected; it is not a security guarantee.
-- Hooks do not block prompts on failure. Their network work has a 15-second
-  deadline, with no retries and a maximum of 5 seconds per request.
-
-## Limits and measurement
-
-JEV returns `Choice`, `Score`, and `Noul` judgments, not generated text. The client
-pins `jev-1.13.0`; change the version deliberately when revalidating thresholds.
-TypeSafe documents a 64k-token request limit and a 32k-token limit for state plus
-the longest question. Jevusher uses smaller conservative byte limits, bounded
-batches, and at most four concurrent requests per batch runner. Oversized inputs
-fall back rather than being silently truncated.
-
-JEV can misclassify adversarial text and loses accuracy with irrelevant context.
-Confidence is not proof that a decision is correct. Start with reversible
-selection, retain source material, and evaluate on representative tasks.
+JEV returns typed `Choice`, `Score`, and `Noul` judgments, not generated summaries.
+The client pins `jev-1.13.0`. JEV can misclassify adversarial text, and irrelevant
+context can reduce accuracy. Confidence is not proof that a decision is correct.
 [TypeSafe model limits](https://docs.typesafe.ai/models) ·
 [Known limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13)
 
-`report` estimates selected token volume and JEV cost. Hook context is recorded
-as added context, not invented catalog savings. Library figures assume the caller
-uses the selection. Neither figure proves a lower bill or unchanged task quality;
-cache reads, retries, output tokens, and completion quality also matter.
+- Hook failures leave the original tool result available. Unsupported formats
+  pass through. Recovery must succeed before any result is replaced.
+- Library memory admission keeps uncertain material within its hard budget;
+  even an outage fallback can exclude useful material when the budget is small.
+- Library compaction preserves uncertain blocks verbatim, even over `keepBudget`.
+  Confident reductions are lossy; the caller owns transcript integrity and recovery.
+- Screening returns `unavailable` for missing or invalid answers. A `pass` means
+  nothing detected, not that text is safe to execute.
+- Requests and concurrency are bounded. Oversized inputs fall back instead of
+  receiving a misleading judgment on a silently truncated sample.
+
+Read [architecture and accounting](docs/architecture.md) for resource bounds and
+which figures are estimates.
+
+## Common questions
+
+**Will this reduce my Claude subscription bill?** A fixed subscription fee does
+not decrease when a prompt shrinks. Smaller inputs may help usage allowance, but
+retries, output, prompt caching, and task quality also matter. Compare completed
+tasks; API dollar estimates are not subscription savings.
+
+**Does everything stay local?** No. The UI and hooks run locally, but text chosen
+for evaluation is sent to TypeSafe. Claude tests also send their synthetic task
+inputs to Anthropic. No API key is needed for offline tests.
+
+**Does it replace Claude's memory, tool search, or prompt cache?** No. It works
+with explicit inputs and supported tool outputs. Comparisons should preserve
+Claude's native features in both runs.
+
+**Can I use it without Claude Code?** Yes. The TypeScript library accepts
+caller-owned candidates and returns decisions. Your application decides how to
+use the selected text.
+
+## Development and support
 
 ```bash
-npm run check                    # deterministic, offline tests and build
-npm pack                         # validates and builds the distributable
-# Optional paid API evaluation, synthetic fixtures only:
+npm run check          # offline tests, typecheck, and build
+npm run test:package   # install and exercise a packed artifact
+# Optional paid evaluation with synthetic fixtures:
 npm run eval:live -- --live --out /tmp/jevusher-evaluation.json
+npm run eval:claude -- --live --out /tmp/jevusher-claude.json
 ```
 
-Live evaluation results belong outside the repository. These component checks do
-not establish Claude task-quality parity or production readiness.
+Read [Contributing](CONTRIBUTING.md) or [agent instructions](AGENTS.md) to work on
+the repository. Report a reproducible problem through
+[GitHub issues](https://github.com/cvsgireesh/jevusher/issues). Keep credentials,
+private transcripts, and generated test reports out of issues and commits.
 
-[Reference](docs/reference.md) · [Architecture](docs/architecture.md) ·
-[Claude Code](docs/claude-code.md) · [Privacy](docs/privacy.md) ·
-[Contributing](CONTRIBUTING.md)
+[Local UI](docs/local-ui.md) · [Claude Code](docs/claude-code.md) ·
+[API reference](docs/reference.md) · [Privacy](docs/privacy.md) ·
+[Security](SECURITY.md) · [Documentation index for agents](llms.txt)
 
-Independent project. Not affiliated with or endorsed by TypeSafe or Anthropic.
-Jev is TypeSafe's model name. MIT licensed.
+Independent project; not affiliated with or endorsed by TypeSafe or Anthropic.
+JEV is TypeSafe's model. [MIT licensed](LICENSE).

@@ -1,0 +1,22 @@
+name: Feature request
+description: Describe a concrete task that Jevusher should support.
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: What are you trying to do?
+      description: Describe the workflow and what currently prevents it.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe what a successful result would look like, including how you would test it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Current workaround
+      description: Include relevant native Claude features or other approaches you have tried.

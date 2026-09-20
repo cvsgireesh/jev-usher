@@ -17,8 +17,14 @@
     "bin",
     "README.md",
     "LICENSE",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "llms.txt",
     "docs",
     "hooks",
+    "ui",
     ".claude-plugin"
   ],
   "engines": {
@@ -31,7 +37,8 @@
     "prepack": "npm run typecheck && npm test && npm run build",
     "eval:live": "npm run build && node scripts/evaluate.mjs",
     "check": "npm run typecheck && npm test && npm run build",
-    "test:package": "node scripts/package-smoke.mjs"
+    "test:package": "node scripts/package-smoke.mjs",
+    "eval:claude": "npm run build && node scripts/evaluate-claude.mjs"
   },
   "keywords": [
     "jev",
@@ -49,6 +56,9 @@
     "url": "git+https://github.com/cvsgireesh/jevusher.git"
   },
   "homepage": "https://github.com/cvsgireesh/jevusher#readme",
+  "bugs": {
+    "url": "https://github.com/cvsgireesh/jevusher/issues"
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.23.13",

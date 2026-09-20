@@ -1,7 +1,7 @@
 {
   "name": "jevusher",
   "version": "0.1.0",
-  "description": "Jev-powered memory selection, capability hints, and opt-in tool-output screening.",
+  "description": "Recoverable JEV context filtering for Claude Code tools, explicit memory admission, and optional screening.",
   "author": { "name": "cvsgireesh" },
   "homepage": "https://github.com/cvsgireesh/jevusher",
   "repository": "https://github.com/cvsgireesh/jevusher",
