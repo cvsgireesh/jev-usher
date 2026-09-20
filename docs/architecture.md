@@ -70,9 +70,13 @@ pass only what survives. Also catches prompt injection in fetched content for fr
 Docs: [classifying RAG passages](https://docs.typesafe.ai/cookbooks/classifying_rag_passages.md)
 
 ### J5 — Compaction survivor selection
-Compaction today is an LLM summarization pass over the full transcript — expensive, lossy in
-unpredictable ways. Instead: Jev scores each transcript block (`drop | summarize | keep verbatim`),
-code assembles the new context. The summarizing LLM then only sees the `summarize` bucket.
+Compaction today is an LLM rewrite of the full transcript — expensive, and lossy in unpredictable
+ways: a path, an error string, or a number can vanish while the prose still reads fine. Measured on
+a real session, the rewrite cost $0.0215 a go.
+
+So do not rewrite. Jev labels each block `keep | shorten | drop`; code assembles the result from
+the original text. A shortened block is cut to its opening with a marker naming what went. No
+second model runs, and every surviving word is a word that was really written.
 
 ### J6 — Stop / continue gate
 Noul: "has the stated goal been met by the work so far?" + "is this attempt repeating a failed one?"

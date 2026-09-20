@@ -44,13 +44,21 @@ often than it helps. Enable it with `JEVUSHER_GOAL` set and:
 { "hooks": { "Stop": [{ "hooks": [{ "type": "command", "command": "npx --yes jevusher hook stop" }] }] } }
 ```
 
-**`PreCompact` cannot steer compaction.** It can block it, nothing more. `Compactor` is for custom
-agents and SDK loops, not for this hook.
+**`PreCompact` cannot steer compaction — but that is not the whole story.** The shell `PreCompact`
+hook can only block. Claude Code also has a *function-hook* plugin API, where a typed module is
+registered rather than a shell command, and a hook there can replace compaction outright rather
+than merely veto it. That surface is early access and is not in the public plugin reference; its
+type declarations are generated locally by `/plugin-types`.
+
+Everything below describes the shell-hook integration, which is what this repository ships today.
+A function-hook plugin would be a stronger integration for every lens, because those hooks can
+rewrite a request instead of appending to it. It is on the roadmap and not yet built.
 
 **`PostToolUse` fires after the tool ran**, so it cannot keep output out of the transcript — only
-annotate it. J4's real value is in agents you control, where you filter before appending.
+annotate it. Through the shell-hook surface, J4's real value is in agents you control, where you
+filter before appending.
 
-**J1 is advisory in a hook.** It injects a suggestion; it does not switch the model for you.
+**J1 is advisory in a shell hook.** It injects a suggestion; it does not switch the model for you.
 
 ## Timeouts
 

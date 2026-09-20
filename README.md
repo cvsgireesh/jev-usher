@@ -98,15 +98,16 @@ export JEV_API_KEY=...
 ## J5 · Compactor — *what survives compaction?*
 
 ```
-  t1  user: login loops on Safari         →  ░░ summarize
+  t1  user: login loops on Safari         →  ░░ shorten
   t2  "let me look at the auth code"      →  ·· drop
-  t3  tool: read auth/callback.ts         →  ░░ summarize
-  t4  "running the test suite"            →  ░░ summarize
-  t5  tool: 48 passed, 0 failed           →  ░░ summarize
-  t6  DECISION: SameSite=Lax, not Strict  →  ██ keep verbatim
-                                              └── only this reaches the summarizer intact
+  t3  tool: read auth/callback.ts         →  ░░ shorten
+  t4  "running the test suite"            →  ░░ shorten
+  t5  tool: 48 passed, 0 failed           →  ░░ shorten
+  t6  DECISION: SameSite=Lax, not Strict  →  ██ keep, byte for byte
+                                              └── nothing is rewritten. every
+                                                  surviving word is the original
 ```
-<sub>Unsure → `summarize`, never `drop`. The safe middle rung.</sub>
+<sub>No second model, no paraphrase. Unsure → `shorten`, never `drop`.</sub>
 
 ## J6 · StopGate — *should this loop still be running?*
 
