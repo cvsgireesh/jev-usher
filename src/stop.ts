@@ -1,4 +1,5 @@
 import { DEFAULT_MODEL, JevClient, type JevClientConfig, type Provider } from "./client.js";
+import { requiredText, threshold } from "./validation.js";
 import { asNoul, runBatches, sumUsage, ZERO_USAGE } from "./core.js";
 import type { StateValue, Usage } from "./types.js";
 
@@ -46,6 +47,9 @@ export class StopGate {
   async check(options: StopOptions): Promise<StopResult> {
     const { goal, work, nextAction, metThreshold = 0.8, loopThreshold = 0.75 } = options;
 
+    requiredText(goal, "goal");
+    threshold(metThreshold, "metThreshold");
+    threshold(loopThreshold, "loopThreshold");
     let responses;
     try {
       responses = await runBatches(this.provider, [
@@ -92,6 +96,9 @@ export class StopGate {
     const needsUser = asNoul(answers.needs_user);
     const usage = sumUsage(responses);
 
+    if (goalMet === null || looping === null || needsUser === null) {
+      return { shouldStop: false, reason: "unavailable", goalMet, looping, needsUser, usage };
+    }
     if (goalMet !== null && goalMet >= metThreshold) {
       return { shouldStop: true, reason: "goal-met", goalMet, looping, needsUser, usage };
     }

@@ -1,4 +1,7 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { configureHooks, shellQuote } from "./install.js";
+import { JevClient } from "./client.js";
+import { record } from "./validation.js";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Jevusher } from "./pipeline.js";
@@ -9,7 +12,8 @@ import { jevusherHome, ledgerPath, readJsonl } from "./store.js";
 const USAGE = `jevusher — the doorman for your context window
 
   jevusher install [--global]     wire the hooks into Claude Code settings
-  jevusher report                 what the lenses have saved so far
+  jevusher uninstall [--global]   remove Jevusher hooks, keeping other settings
+  jevusher report                 estimated context volume and provider usage
   jevusher doctor                 check key, connectivity, and store files
 
   jevusher hook <event>           run a hook; reads hook JSON on stdin
@@ -42,6 +46,8 @@ export async function main(argv: string[]): Promise<number> {
       return 0;
     case "install":
       return install(rest.includes("--global"));
+    case "uninstall":
+      return install(rest.includes("--global"), true);
     case "report":
       return report();
     case "doctor":
@@ -63,7 +69,13 @@ export async function main(argv: string[]): Promise<number> {
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+  let bytes = 0;
+  for await (const chunk of process.stdin) {
+    const data = Buffer.from(chunk);
+    bytes += data.length;
+    if (bytes > 2_000_000) throw new Error("stdin exceeds the 2 MB limit");
+    chunks.push(data);
+  }
   return Buffer.concat(chunks).toString("utf8");
 }
 
@@ -90,6 +102,7 @@ async function hook(event: string | undefined): Promise<number> {
   }
   try {
     const input = await readStdinJson<HookInput>();
+    if (!record(input)) throw new TypeError("hook input must be an object");
     const output = await handler(input);
     if (Object.keys(output).length > 0) process.stdout.write(JSON.stringify(output));
   } catch (error) {
@@ -116,7 +129,10 @@ async function lens(name: string): Promise<number> {
 }
 
 async function report(): Promise<number> {
-  const entries = await readJsonl<LedgerEntry>(ledgerPath());
+  const stored = await readJsonl<LedgerEntry>(ledgerPath());
+  const entries = stored.filter(e => record(e) && typeof e.lens === "string" &&
+    [e.offered, e.admitted, e.requests].every(n => typeof n === "number" && Number.isFinite(n) && n >= 0) &&
+    record(e.jevUsage) && typeof e.jevUsage.input_tokens === "number" && e.jevUsage.input_tokens >= 0);
   if (entries.length === 0) {
     process.stdout.write(`No ledger entries yet at ${ledgerPath()}.\nRun some turns with the hooks installed first.\n`);
     return 0;
@@ -136,7 +152,7 @@ async function report(): Promise<number> {
     lens,
     offered: data.offered,
     admitted: data.admitted,
-    kept_out: data.offered - data.admitted,
+    estimated_delta: data.offered - data.admitted,
     jev_tokens: data.jevTokens,
     requests: data.requests,
   }));
@@ -145,8 +161,8 @@ async function report(): Promise<number> {
   if (rows.length) console.table(rows);
   process.stdout.write(
     `\n  offered to model : ${summary.offered.toLocaleString()} tok` +
-      `\n  actually sent    : ${summary.admitted.toLocaleString()} tok` +
-      `\n  kept out         : ${summary.saved.toLocaleString()} tok` +
+      `\n  selected/injected: ${summary.admitted.toLocaleString()} tok` +
+      `\n  estimated delta  : ${summary.saved.toLocaleString()} tok` +
       `\n  jev read         : ${summary.jevTokens.toLocaleString()} tok in ${summary.requests} requests` +
       `\n\n  cost without     : $${summary.cost.targetWithout.toFixed(4)}` +
       `\n  cost with        : $${summary.cost.targetWith.toFixed(4)}` +
@@ -160,6 +176,7 @@ async function report(): Promise<number> {
 
 async function doctor(): Promise<number> {
   const lines: string[] = [];
+  let healthy = true;
   const key = process.env.JEV_API_KEY ?? process.env.TYPESAFE_API_KEY;
   lines.push(`api key     : ${key ? `set (${key.length} chars)` : "MISSING — set JEV_API_KEY"}`);
   lines.push(`home        : ${jevusherHome()}`);
@@ -172,58 +189,34 @@ async function doctor(): Promise<number> {
 
   if (key) {
     try {
-      const jevusher = new Jevusher();
-      const probe = await jevusher.stopGate.check({ goal: "say hello", work: "said hello" });
-      lines.push(`connectivity: ok (goal_met ${probe.goalMet?.toFixed(2) ?? "n/a"})`);
+      const client = new JevClient({ timeoutMs: 5000, maxRetries: 0 });
+      const probe = await client.evaluate({ model: client.model, state: "hello", questions: {
+        greeting: { type: "noul", instructions: "Is this a greeting?" },
+      } });
+      lines.push(`connectivity: ok (${probe.model})`);
     } catch (error) {
+      healthy = false;
       lines.push(`connectivity: FAILED — ${(error as Error).message}`);
     }
   }
   process.stdout.write(`${lines.join("\n")}\n`);
-  return key ? 0 : 1;
+  return key && healthy ? 0 : 1;
 }
 
-const HOOK_COMMAND = "npx --yes jevusher hook";
-
-async function install(global: boolean): Promise<number> {
+async function install(global: boolean, remove = false): Promise<number> {
   const settingsPath = global
     ? join(homedir(), ".claude", "settings.json")
     : join(process.cwd(), ".claude", "settings.json");
-
-  let settings: Record<string, unknown> = {};
-  try {
-    settings = JSON.parse(await readFile(settingsPath, "utf8")) as Record<string, unknown>;
-  } catch {
-    // No settings file yet; start from nothing rather than failing.
-  }
-
-  const hooks = (settings.hooks ??= {}) as Record<string, unknown[]>;
-  const add = (event: string, entry: Record<string, unknown>) => {
-    const list = (hooks[event] ??= []);
-    const already = JSON.stringify(list).includes("jevusher");
-    if (!already) list.push(entry);
-  };
-
-  add("UserPromptSubmit", {
-    hooks: [{ type: "command", command: `${HOOK_COMMAND} user-prompt-submit`, timeout: 30 }],
-  });
-  add("PostToolUse", {
-    matcher: "WebFetch|WebSearch|mcp__.*",
-    hooks: [{ type: "command", command: `${HOOK_COMMAND} post-tool-use`, timeout: 30 }],
-  });
-
-  await mkdir(join(settingsPath, ".."), { recursive: true });
-  await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
-
-  process.stdout.write(
-    `Wrote hooks to ${settingsPath}\n\n` +
-      `  UserPromptSubmit -> route + gate + memory admission\n` +
-      `  PostToolUse      -> injection screening on web and MCP output\n\n` +
-      `The Stop hook is not installed by default: it can only block stopping, never\n` +
-      `stop early, so it fights the agent more often than it helps. Add it yourself\n` +
-      `with "${HOOK_COMMAND} stop" if you want goal verification.\n\n` +
-      `Next: put memories in ${join(jevusherHome(), "memory.jsonl")} and capabilities in\n` +
-      `${join(jevusherHome(), "catalog.jsonl")}, then run "jevusher doctor".\n`,
-  );
+  if (process.platform === "win32") throw new Error("Settings installation currently supports macOS and Linux; use the plugin on other platforms.");
+  const executable = fileURLToPath(new URL("../bin/jevusher.mjs", import.meta.url));
+  const command = `${shellQuote(process.execPath)} ${shellQuote(executable)}`;
+  await configureHooks(settingsPath, command, remove);
+  process.stdout.write(`${remove ? "Removed Jevusher hooks from" : "Installed local Jevusher hooks in"} ${settingsPath}\n`);
+  if (!remove) process.stdout.write(
+    "Keep this installation at its current path. Existing settings were backed up.\n" +
+    "Configure memory.jsonl and catalog.jsonl under JEVUSHER_HOME. These records and\n" +
+    "your prompt are sent to TypeSafe. Tool screening requires JEVUSHER_SCREEN=1;\n" +
+    "MCP tools additionally require an exact-name JEVUSHER_MCP_TOOLS allowlist.\n" +
+    "Run jevusher doctor. Routing and skill hints are advisory. Stop is not installed.\n");
   return 0;
 }

@@ -1,11 +1,12 @@
 import { DEFAULT_MODEL, JevClient, type JevClientConfig, type Provider } from "./client.js";
-import { candidateTokens, chunk, totalTokens } from "./budget.js";
+import { asNoul, asScore, runBatches } from "./core.js";
+import { requiredText, candidates as validateCandidates, integer, nonNegative, threshold as validateThreshold } from "./validation.js";
+import { candidateTokens, boundedChunks, totalTokens } from "./budget.js";
 import type {
   AdmitReason,
   AdmitResult,
   Candidate,
   ScoreAnswer,
-  NoulAnswer,
   Question,
   SystemOneResponse,
   Usage,
@@ -88,6 +89,13 @@ export class Usher {
       batchSize = 64,
     } = options;
 
+    requiredText(goal, "goal");
+    validateCandidates(candidates);
+    integer(batchSize, "batchSize", 1);
+    nonNegative(budget, "budget");
+    nonNegative(threshold, "threshold");
+    validateThreshold(minConfidence, "minConfidence");
+    validateThreshold(needThreshold, "needThreshold");
     if (levels.length < 2) throw new RangeError("levels needs at least two entries");
 
     const tokensOffered = totalTokens(candidates);
@@ -104,17 +112,15 @@ export class Usher {
       };
     }
 
-    const batches = chunk(candidates, batchSize);
+    const batches = boundedChunks(candidates, batchSize, ({ id, text }) => ({ id, text }));
     let responses: SystemOneResponse[];
     try {
-      responses = await Promise.all(
-        batches.map((batch, index) =>
-          this.provider.evaluate({
+      responses = await runBatches(this.provider,
+        batches.map((batch) => ({
             model: this.provider.model ?? DEFAULT_MODEL,
             state: { goal, candidates: batch.map(({ id, text }) => ({ id, text })) },
-            questions: buildQuestions(batch, levels, checkNeed && index === 0),
-          }),
-        ),
+            questions: buildQuestions(batch, levels, checkNeed),
+          })),
       );
     } catch (error) {
       if (!failOpen) throw error;
@@ -129,15 +135,16 @@ export class Usher {
       { input_tokens: 0, output_tokens: 0 },
     );
 
-    const needAnswer = responses[0]?.answers?.[NEED_KEY];
-    const need = needAnswer && needAnswer.type === "noul" ? (needAnswer as NoulAnswer).noul : null;
+    // A batch only sees its own candidates. Never let the first batch veto later ones.
+    const needs = checkNeed ? responses.map(r => asNoul(r.answers?.[NEED_KEY])) : [];
+    const need = needs.length && needs.every(n => n !== null) ? Math.max(...needs as number[]) : null;
 
     const scored: Scored[] = [];
     batches.forEach((batch, batchIndex) => {
       const answers = responses[batchIndex]?.answers ?? {};
       batch.forEach((candidate, position) => {
-        const answer = answers[questionKey(position)];
-        const isScore = answer?.type === "score";
+        const answer = asScore(answers[questionKey(position)]);
+        const isScore = answer !== null && answer.score <= levels.length - 1;
         scored.push({
           candidate,
           score: isScore ? (answer as ScoreAnswer).score : null,
@@ -242,7 +249,7 @@ function verdictOf(entry: Scored, admitted: boolean, reason: AdmitReason): Verdi
   };
 }
 
-/** Provider failed and failOpen is on: behave as though no usher were installed. */
+/** Provider failure: retain original input order subject to the hard admission budget. */
 function admitEverything(candidates: Candidate[], budget: number, tokensOffered: number): AdmitResult {
   const admitted: Candidate[] = [];
   const verdicts: Verdict[] = [];

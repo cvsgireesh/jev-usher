@@ -21,7 +21,7 @@ function triageStub(table: Record<string, [string, number]>) {
 }
 
 describe("Compactor.triage", () => {
-  it("sorts blocks into keep, summarize and drop", async () => {
+  it("sorts blocks into keep, shorten and drop", async () => {
     const compactor = new Compactor({
       provider: triageStub({ b1: ["keep", 0.9], b2: ["drop", 0.9], b3: ["keep", 0.9] }),
     });
@@ -32,7 +32,7 @@ describe("Compactor.triage", () => {
     expect(result.tokensBefore).toBe(300);
   });
 
-  it("demotes keeps to summarize once the verbatim budget is spent", async () => {
+  it("demotes keeps to shorten once the verbatim budget is spent", async () => {
     const compactor = new Compactor({
       provider: triageStub({ b1: ["keep", 0.9], b2: ["keep", 0.9], b3: ["keep", 0.9] }),
     });
@@ -45,7 +45,7 @@ describe("Compactor.triage", () => {
     const compactor = new Compactor({ provider: triageStub({ b1: ["drop", 0.1] }) });
     const result = await compactor.triage({ goal: "g", blocks: [blocks[0]!] });
     expect(result.drop).toHaveLength(0);
-    expect(result.shortened.map((b: { id: string }) => b.id)).toEqual(["b1"]);
+    expect(result.keep.map((b: { id: string }) => b.id)).toEqual(["b1"]);
   });
 
   it("shortens by cutting, never by rewriting", async () => {

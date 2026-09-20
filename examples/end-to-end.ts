@@ -70,7 +70,7 @@ const blocks: Candidate[] = [
 ];
 const compacted = await jevusher.beforeCompact({ goal: turn, blocks });
 console.log(`\nJ5 compact  : keep=[${compacted.keep.map((b) => b.id)}] ` +
-  `summarize=[${compacted.summarize.map((b) => b.id)}] drop=[${compacted.drop.map((b) => b.id)}]`);
+  `shortened=[${compacted.shortened.map((b) => b.id)}] drop=[${compacted.drop.map((b) => b.id)}]`);
 
 const report = jevusher.report();
 console.log(`\n--- ledger ---`);

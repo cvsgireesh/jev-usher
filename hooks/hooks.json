@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [{
+      "hooks": [{
+        "type": "command",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/jevusher.mjs\" hook user-prompt-submit",
+        "timeout": 20
+      }]
+    }],
+    "PostToolUse": [{
+      "matcher": "^(WebFetch|WebSearch|mcp__.*)$",
+      "hooks": [{
+        "type": "command",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/jevusher.mjs\" hook post-tool-use",
+        "timeout": 20
+      }]
+    }]
+  }
+}

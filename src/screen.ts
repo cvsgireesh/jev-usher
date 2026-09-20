@@ -1,6 +1,7 @@
 import { DEFAULT_MODEL, JevClient, type JevClientConfig, type Provider } from "./client.js";
 import { asNoul, asScore, runBatches, sumUsage, ZERO_USAGE } from "./core.js";
-import { chunk } from "./budget.js";
+import { candidates, threshold } from "./validation.js";
+import { boundedChunks } from "./budget.js";
 import type { Candidate, Question, Usage } from "./types.js";
 
 export type ScreenVerdict = "pass" | "review" | "block" | "unavailable";
@@ -58,11 +59,15 @@ export class Screen {
 
   async check(options: ScreenOptions): Promise<ScreenResult> {
     const { items, source, blockThreshold = 0.8, reviewThreshold = 0.45, batchSize = 32 } = options;
+    candidates(items);
+    threshold(blockThreshold, "blockThreshold");
+    threshold(reviewThreshold, "reviewThreshold");
+    if (reviewThreshold > blockThreshold) throw new RangeError("reviewThreshold must not exceed blockThreshold");
     if (items.length === 0) {
       return { findings: [], passed: [], flagged: [], blocked: [], usage: { ...ZERO_USAGE }, requests: 0 };
     }
 
-    const batches = chunk(items, batchSize);
+    const batches = boundedChunks(items, batchSize, ({ id, text }) => ({ id, text }));
     let responses;
     try {
       responses = await runBatches(
@@ -107,7 +112,8 @@ export class Screen {
         const harmScore = asScore(answers[`h${position}`]);
         const worst = Math.max(injection ?? 0, jailbreak ?? 0);
         const verdict: ScreenVerdict =
-          worst >= blockThreshold ? "block" : worst >= reviewThreshold ? "review" : "pass";
+          worst >= blockThreshold ? "block" : worst >= reviewThreshold ? "review" :
+          injection === null || jailbreak === null || harmScore === null ? "unavailable" : "pass";
         findings.push({
           id: item.id,
           verdict,
@@ -117,7 +123,7 @@ export class Screen {
           harmConfidence: harmScore?.confidence ?? null,
         });
         if (verdict === "block") blocked.push(item);
-        else if (verdict === "review") flagged.push(item);
+        else if (verdict === "review" || verdict === "unavailable") flagged.push(item);
         else passed.push(item);
       });
     });

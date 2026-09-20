@@ -1,4 +1,5 @@
 import { DEFAULT_MODEL, JevClient, type JevClientConfig, type Provider } from "./client.js";
+import { requiredText, ids, threshold } from "./validation.js";
 import { asChoice, asNoul, runBatches, sumUsage, ZERO_USAGE } from "./core.js";
 import type { StateValue, Usage } from "./types.js";
 
@@ -96,12 +97,16 @@ export class Router {
       probeWork = true,
     } = options;
 
+    requiredText(turn, "turn");
+    ids(tiers);
+    threshold(minConfidence, "minConfidence");
+    if (tiers.length > 255) throw new RangeError("route supports at most 255 tiers");
     if (tiers.length < 2) throw new RangeError("route needs at least two tiers");
     const fallbackId = options.fallback ?? tiers[tiers.length - 1]!.id;
     const fallback = tiers.find((tier) => tier.id === fallbackId);
     if (!fallback) throw new RangeError(`fallback tier "${fallbackId}" is not in tiers`);
 
-    const criteria: Record<string, string> = {};
+    const criteria: Record<string, string> = Object.create(null);
     for (const tier of tiers) criteria[tier.id] = tier.description;
 
     const questions: Record<string, import("./types.js").Question> = {

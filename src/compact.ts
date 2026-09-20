@@ -1,6 +1,7 @@
 import { DEFAULT_MODEL, JevClient, type JevClientConfig, type Provider } from "./client.js";
 import { asChoice, runBatches, sumUsage, ZERO_USAGE } from "./core.js";
-import { candidateTokens, chunk, totalTokens } from "./budget.js";
+import { requiredText, candidates, integer, nonNegative, threshold } from "./validation.js";
+import { candidateTokens, boundedChunks, totalTokens } from "./budget.js";
 import type { Candidate, Question, Usage } from "./types.js";
 
 export type Disposition = "keep" | "shorten" | "drop";
@@ -25,7 +26,7 @@ export interface CompactOptions {
   keepBudget?: number;
   /** Default 0.55. */
   minConfidence?: number;
-  /** Default true: an untrusted verdict is shortened, never dropped. */
+  /** Default true: an untrusted verdict is kept verbatim, even over keepBudget. */
   failOpen?: boolean;
   /** Blocks per request. Default 48. */
   batchSize?: number;
@@ -34,6 +35,8 @@ export interface CompactOptions {
 }
 
 export interface CompactResult {
+  /** Surviving blocks in original order, including shortened blocks. */
+  retained: Candidate[];
   /** Untouched, byte for byte. */
   keep: Candidate[];
   /** Cut to their opening, with a marker naming what was removed. */
@@ -49,20 +52,9 @@ export interface CompactResult {
 /**
  * J5 — compaction triage.
  *
- * Compaction usually means paying a model to rewrite the transcript as prose.
- * That costs money and loses things: an exact path, an error string, a number
- * that mattered. Measurement on a real session put the rewrite at $0.0215 a go,
- * for a result that is strictly less faithful than the text it replaced.
- *
- * So nothing here is rewritten. Jev decides, per block, between three outcomes,
- * and the surviving text is always the original text:
- *
- *   keep     untouched, byte for byte
- *   shorten  cut to its opening, with a marker naming what was removed
- *   drop     gone
- *
- * No second model runs, so triage costs only what Jev costs, and every word the
- * next turn reads is a word that was really written.
+ * Extractive, lossy reduction of text blocks. Kept text is unchanged; shortened
+ * and dropped blocks lose information. Callers own role/tool pairing, protected
+ * instructions, recovery, and the final model context limit.
  */
 export class Compactor {
   private readonly provider: Provider;
@@ -81,12 +73,18 @@ export class Compactor {
       batchSize = 48,
       headChars = 300,
     } = options;
+    requiredText(goal, "goal");
+    candidates(blocks);
+    nonNegative(keepBudget, "keepBudget");
+    integer(headChars, "headChars");
+    integer(batchSize, "batchSize", 1);
+    threshold(minConfidence, "minConfidence");
     const tokensBefore = totalTokens(blocks);
     if (blocks.length === 0) {
-      return { keep: [], shortened: [], drop: [], verdicts: [], tokensBefore: 0, tokensKept: 0, usage: { ...ZERO_USAGE }, requests: 0 };
+      return { retained: [], keep: [], shortened: [], drop: [], verdicts: [], tokensBefore: 0, tokensKept: 0, usage: { ...ZERO_USAGE }, requests: 0 };
     }
 
-    const batches = chunk(blocks, batchSize);
+    const batches = boundedChunks(blocks, batchSize, ({ id, text }) => ({ id, text }));
     let responses;
     try {
       responses = await runBatches(
@@ -101,6 +99,7 @@ export class Compactor {
       // Unreachable provider must never silently shrink a transcript.
       if (!failOpen) throw new Error("compaction triage failed and failOpen is off");
       return {
+        retained: blocks,
         keep: blocks,
         shortened: [],
         drop: [],
@@ -124,10 +123,11 @@ export class Compactor {
       const answers = responses[batchIndex]?.answers ?? {};
       batch.forEach((block, position) => {
         const choice = asChoice(answers[`b${position}`]);
-        const trusted = (choice?.confidence ?? 0) >= minConfidence;
-        const raw = (choice?.choice ?? "shorten") as Disposition;
-        // Untrusted verdicts land on the safe middle rung, never on drop.
-        const disposition: Disposition = trusted ? raw : failOpen ? "shorten" : raw;
+        const valid = choice !== null && ["keep", "shorten", "drop"].includes(choice.choice);
+        const trusted = valid && choice.confidence >= minConfidence;
+        const raw = (valid ? choice.choice : "keep") as Disposition;
+        // Missing or uncertain evidence cannot justify deleting text.
+        const disposition: Disposition = trusted ? raw : failOpen ? "keep" : raw;
         verdicts.push({
           id: block.id,
           disposition,
@@ -140,6 +140,7 @@ export class Compactor {
     });
 
     const byId = new Map(blocks.map((block) => [block.id, block]));
+    const retained: Candidate[] = [];
     const keep: Candidate[] = [];
     const shortened: Candidate[] = [];
     const drop: Candidate[] = [];
@@ -152,9 +153,10 @@ export class Compactor {
       const block = byId.get(verdict.id);
       if (!block) continue;
 
-      if (verdict.disposition === "keep" && kept + verdict.tokens <= keepBudget) {
+      if (verdict.disposition === "keep" && (!verdict.trusted && failOpen || kept + verdict.tokens <= keepBudget)) {
         kept += verdict.tokens;
         keep.push(block);
+        retained.push(block);
         continue;
       }
       if (verdict.disposition === "drop") {
@@ -165,11 +167,14 @@ export class Compactor {
       verdict.disposition = "shorten";
       const short = shorten(block.text, headChars);
       verdict.shortened = short;
-      shortened.push({ ...block, text: short });
-      kept += Math.ceil(short.length / 4);
+      const tokens = short === block.text ? candidateTokens(block) : Math.ceil(short.length / 4);
+      const reduced = { ...block, text: short, tokens };
+      shortened.push(reduced);
+      retained.push(reduced);
+      kept += tokens;
     }
 
-    return { keep, shortened, drop, verdicts, tokensBefore, tokensKept: kept, usage: sumUsage(responses), requests: responses.length };
+    return { retained, keep, shortened, drop, verdicts, tokensBefore, tokensKept: kept, usage: sumUsage(responses), requests: responses.length };
   }
 }
 
@@ -200,6 +205,10 @@ function triageQuestions(batch: Candidate[]): Record<string, Question> {
  */
 function shorten(text: string, headChars: number): string {
   if (text.length <= headChars) return text;
-  const removed = text.length - headChars;
-  return `${text.slice(0, headChars)}\n[... ${removed.toLocaleString()} characters removed ...]`;
+  // Avoid splitting a UTF-16 surrogate pair.
+  let end = headChars;
+  if (end > 0 && /[\uD800-\uDBFF]/.test(text[end - 1]!)) end--;
+  const removed = text.length - end;
+  const result = `${text.slice(0, end)}\n[... ${removed} characters removed ...]`;
+  return result.length < text.length ? result : text;
 }

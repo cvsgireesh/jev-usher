@@ -1,6 +1,8 @@
 import type { JevClientConfig, Provider } from "./client.js";
 import { Usher, type AdmitOptions } from "./usher.js";
 import { Screen, type ScreenFinding } from "./screen.js";
+import { candidates as validateCandidates } from "./validation.js";
+import { totalTokens } from "./budget.js";
 import { ZERO_USAGE } from "./core.js";
 import type { AdmitResult, Candidate, Usage } from "./types.js";
 
@@ -43,6 +45,8 @@ export class Filter {
 
   async apply(options: FilterOptions): Promise<FilterResult> {
     const { chunks, source, screen, dropBlocked = true, ...admitOptions } = options;
+    validateCandidates(chunks);
+    let screenRequests = 0;
     const shouldScreen = screen ?? (source === "web" || source === "mcp");
 
     let findings: ScreenFinding[] = [];
@@ -57,6 +61,7 @@ export class Filter {
       blocked = result.blocked;
       flagged = result.flagged;
       screenUsage = result.usage;
+      screenRequests = result.requests;
       survivors = dropBlocked ? [...result.passed, ...result.flagged] : chunks;
       // Preserve the caller's ordering rather than the screen's bucketing.
       const keep = new Set(survivors.map((chunk) => chunk.id));
@@ -64,6 +69,6 @@ export class Filter {
     }
 
     const admitted = await this.usher.admit({ ...admitOptions, candidates: survivors });
-    return { ...admitted, findings, blocked, flagged, screenUsage };
+    return { ...admitted, tokensOffered: totalTokens(chunks), requests: admitted.requests + screenRequests, findings, blocked, flagged, screenUsage };
   }
 }

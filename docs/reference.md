@@ -12,11 +12,11 @@ reason — so you can log and tune rather than trust.
 | `budget` | `4000` | ceiling on admitted tokens |
 | `threshold` | `1.5` | minimum score on the levels scale |
 | `minConfidence` | `0.55` | below this, the score is not trusted |
-| `failOpen` | `true` | unsure verdicts and provider failures let material through |
+| `failOpen` | `true` | unsure verdicts and provider failures let material through, subject to `budget` |
 | `checkNeed` | `true` | also ask whether the goal needs context at all |
 | `needThreshold` | `0.15` | turn everyone away below this need probability |
 | `levels` | 3 defaults | override the relevance rubric |
-| `batchSize` | `64` | candidates per request |
+| `batchSize` | `64` | maximum candidates per request; byte limits may split earlier |
 
 Verdict reasons: `admitted` · `low-confidence-admitted` · `below-threshold` ·
 `low-confidence-turned-away` · `over-budget` · `goal-needs-no-context` · `provider-error-admitted`
@@ -67,10 +67,16 @@ Everything `admit` takes, plus:
 |---|---|---|
 | `goal` | — | what the session is still trying to accomplish |
 | `blocks` | — | transcript blocks, oldest first |
-| `keepBudget` | `8000` | ceiling for blocks kept verbatim; overflow becomes `summarize` |
+| `keepBudget` | `8000` | soft ceiling for trusted verbatim blocks; overflow becomes `shorten` |
 | `minConfidence` | `0.55` | |
-| `failOpen` | `true` | unsure → `summarize`, **never** `drop` |
+| `failOpen` | `true` | unsure → keep verbatim, including over budget |
 | `batchSize` | `48` | |
+
+`retained` combines surviving blocks in original order. `keep`, `shortened`, and
+`drop` are separate groups for inspection. `headChars` defaults to 300. Shortened
+blocks carry updated token estimates; untouched blocks retain caller token counts.
+`keepBudget` does not cap total returned context. Protect required instructions
+and tool call/result pairs in your harness; this API handles plain text blocks.
 
 ## `StopGate.check` — J6
 
@@ -102,7 +108,7 @@ Verdicts: `pass` · `review` · `block` · `unavailable`
 new Jevusher({
   apiKey,          // default: JEV_API_KEY, then TYPESAFE_API_KEY
   baseUrl,         // default https://api.typesafe.ai/v1
-  model,           // default jev-latest
+  model,           // default jev-1.13.0
   timeoutMs,       // default 30_000
   maxRetries,      // default 3 — retries 429 and 5xx with backoff
   provider,        // swap the whole transport, e.g. a stub in tests
@@ -114,6 +120,7 @@ new Jevusher({
 
 ```bash
 jevusher install [--global]    wire the Claude Code hooks
+jevusher uninstall [--global]  remove only Jevusher hooks
 jevusher doctor                key, connectivity, store contents
 jevusher report                what the lenses have saved
 
@@ -125,3 +132,27 @@ jevusher route|admit|gate|screen|stop|compact    JSON in, JSON out
 echo '{"goal":"g","candidates":[{"id":"a","text":"..."}]}' | npx jevusher admit
 echo '{"turn":"rename the getter"}' | npx jevusher route
 ```
+
+## Optional decision cache
+
+```ts
+import { DecisionCache, JevClient, Jevusher } from "jevusher";
+const provider = new DecisionCache(new JevClient(), { maxEntries: 128, ttlMs: 60_000 });
+const usher = new Jevusher({ provider });
+```
+
+The in-memory cache requires a pinned model such as `jev-1.13.0`. Its key hashes
+the entire serialized request, including state, IDs, numbers, instructions,
+criteria, and model. Reordering object keys can cause a miss; it never removes
+fields or performs fuzzy matching. Scope each instance to one caller/tenant.
+It expires decisions and evicts least-recently-used entries. Failed or malformed
+responses are not cached. The instance retains decisions in memory, not raw state
+or credentials in files. `clear()` removes entries; `stats()` exposes hits, misses,
+evictions, and entry count. Hits report zero incremental provider usage.
+
+This is opt-in for long-lived applications. It does not improve hit rate across
+separate command-hook processes and does not coalesce simultaneous misses.
+Ledger request counts are logical evaluations; use cache stats and provider
+billing when distinguishing cache hits from actual requests. Replay verifies
+application behavior; detecting model drift requires fresh model calls on a
+fixed evaluation set.

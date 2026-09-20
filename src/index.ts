@@ -1,3 +1,6 @@
+export { DecisionCache } from "./cache.js";
+export type { DecisionCacheOptions } from "./cache.js";
+
 export { Jevusher } from "./pipeline.js";
 export type { JevusherConfig, BeforeTurnOptions, BeforeTurnResult } from "./pipeline.js";
 

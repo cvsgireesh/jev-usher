@@ -1,6 +1,7 @@
 import { DEFAULT_MODEL, JevClient, type JevClientConfig, type Provider } from "./client.js";
 import { asChoice, asNoul, asScore, runBatches, sumUsage, ZERO_USAGE } from "./core.js";
-import { chunk } from "./budget.js";
+import { requiredText, ids, integer, threshold } from "./validation.js";
+import { boundedChunks } from "./budget.js";
 import type { Question, SystemOneRequest, Usage } from "./types.js";
 
 /** A skill, MCP tool, plugin, or subagent competing to be surfaced this turn. */
@@ -81,9 +82,21 @@ export class Gate {
       batchSize = 96,
     } = options;
 
+    requiredText(turn, "turn");
+    if (!Array.isArray(catalog)) throw new TypeError("catalog must be an array");
+    ids(catalog);
+    if (catalog.some(c => c.id === NONE || typeof c.name !== "string" || typeof c.summary !== "string")) {
+      throw new TypeError("catalog requires names, summaries, and ids other than __none__");
+    }
+    integer(maxSelected, "maxSelected");
+    integer(shortlist, "shortlist");
+    integer(batchSize, "batchSize", 1);
+    if (Math.max(maxSelected, shortlist) > 254) throw new RangeError("shortlist must leave room for NONE in the 255-option limit");
+    threshold(minConfidence, "minConfidence");
+    threshold(needThreshold, "needThreshold");
     if (catalog.length === 0) return empty("empty-catalog");
 
-    const batches = chunk(catalog, batchSize);
+    const batches = boundedChunks(catalog, batchSize, ({ id, name, summary }) => ({ id, name, summary }));
     const stageOne: SystemOneRequest[] = batches.map((batch, index) => ({
       model: this.provider.model ?? DEFAULT_MODEL,
       state: { turn, catalog: batch.map((c) => ({ id: c.id, name: c.name, summary: c.summary })) },
@@ -135,7 +148,7 @@ export class Gate {
     }
 
     // Stage two: read the shortlist properly, with an explicit way to reject all of them.
-    const criteria: Record<string, string> = { [NONE]: "None of these fits this request." };
+    const criteria: Record<string, string> = Object.assign(Object.create(null), { [NONE]: "None of these fits this request." });
     for (const entry of top) {
       criteria[entry.capability.id] = entry.capability.detail ?? entry.capability.summary;
     }
@@ -166,7 +179,7 @@ export class Gate {
     requests += finalResponses.length;
 
     const pick = asChoice(finalResponses[0]?.answers?.pick);
-    const trusted = (pick?.confidence ?? 0) >= minConfidence;
+    const trusted = pick !== null && (pick.choice === NONE || top.some(e => e.capability.id === pick.choice)) && pick.confidence >= minConfidence;
 
     if (!trusted && !failOpen) {
       return { selected: [], ranked, probabilities: pick?.probabilities ?? null, confidence: pick?.confidence ?? null, need, reason: "low-confidence", usage, requests };
@@ -178,7 +191,7 @@ export class Gate {
     // Order the shortlist by the stage-two distribution, then take maxSelected.
     const probabilities = pick?.probabilities ?? {};
     const selected = top
-      .filter((entry) => entry.capability.id !== NONE)
+      .filter((entry) => entry.capability.id !== NONE && (probabilities[entry.capability.id] ?? 0) > 0)
       .sort((a, b) => (probabilities[b.capability.id] ?? 0) - (probabilities[a.capability.id] ?? 0))
       .slice(0, maxSelected)
       .map((entry) => entry.capability);

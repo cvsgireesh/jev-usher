@@ -11,6 +11,7 @@ const saved = { ...process.env };
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), "jevusher-"));
+  process.env.JEVUSHER_SCREEN = "1";
   process.env.JEVUSHER_HOME = home;
   process.env.JEVUSHER_LEDGER = join(home, "ledger.jsonl");
 });
@@ -98,12 +99,12 @@ describe("onPostToolUse", () => {
     expect(output).toEqual({});
   });
 
-  it("ignores local tools and small outputs", async () => {
+  it("ignores local tools but screens short external outputs", async () => {
     const provider = screenStub(0.99);
     const jevusher = new Jevusher({ provider });
     expect(await onPostToolUse({ tool_name: "Read", tool_response: { content: long } }, jevusher)).toEqual({});
-    expect(await onPostToolUse({ tool_name: "WebFetch", tool_response: { content: "tiny" } }, jevusher)).toEqual({});
-    expect(provider.requests).toHaveLength(0);
+    expect((await onPostToolUse({ tool_name: "WebFetch", tool_response: { content: "tiny" } }, jevusher)).hookSpecificOutput?.additionalContext).toContain("HIGH");
+    expect(provider.requests).toHaveLength(1);
   });
 });
 

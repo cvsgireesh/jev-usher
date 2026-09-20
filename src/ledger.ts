@@ -67,7 +67,7 @@ export class Ledger {
   report(): LedgerReport {
     const jevPrice = this.prices.jev ?? 0.042;
     const targetPrice = this.prices.target ?? 15;
-    const byLens: LedgerReport["byLens"] = {};
+    const byLens: LedgerReport["byLens"] = Object.create(null);
     let offered = 0;
     let admitted = 0;
     let jevTokens = 0;
