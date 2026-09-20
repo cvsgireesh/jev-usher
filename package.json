@@ -1,0 +1,50 @@
+{
+  "name": "jevusher",
+  "version": "0.1.0",
+  "description": "The doorman for your context window. Jev-powered admission control: decide which tokens are worth sending to an expensive model.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "jev",
+    "typesafe",
+    "llm",
+    "context",
+    "tokens",
+    "rerank",
+    "agents",
+    "claude",
+    "cost"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cvsgireesh/jevusher.git"
+  },
+  "homepage": "https://github.com/cvsgireesh/jevusher#readme",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.13",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
