@@ -39,113 +39,202 @@ and an unfiltered `grep` dump do not.
 ## Install
 
 ```bash
-npm install jevusher
+npm install jevusher      # library
+npx jevusher install      # wire the Claude Code hooks
 ```
 
 ```bash
-export JEV_API_KEY=...   # or TYPESAFE_API_KEY
+export JEV_API_KEY=...    # or TYPESAFE_API_KEY
 ```
 
-## Use
+## The seven lenses
+
+One posture throughout: **Jev reads cheaply so the expensive model does not have to.**
+
+| | lens | decides | class |
+|---|---|---|---|
+| J1 | `Router` | which model and effort level this turn deserves | selection |
+| J2 | `Gate` | which skills/tools/subagents to surface, out of hundreds | selection |
+| J3 | `Usher` | which recalled memories earn a place in the window | admission |
+| J4 | `Filter` | which chunks of tool output land in the transcript | admission |
+| J5 | `Compactor` | which transcript blocks survive compaction, verbatim or summarized | admission |
+| J6 | `StopGate` | whether the loop should still be running | control |
+| J7 | `Screen` | whether fetched content is trying to issue instructions | safety |
+
+Use one, or wire the lot together with `Jevusher`.
+
+### Everything at once
 
 ```ts
-import { Usher } from "jevusher";
+import { Jevusher } from "jevusher";
 
-const usher = new Usher();
+const jevusher = new Jevusher();
 
-const { admitted, verdicts, tokensOffered, tokensAdmitted } = await usher.admit({
+// J1 + J2 + J3, concurrently, for one incoming turn.
+const before = await jevusher.beforeTurn({ turn, memory, catalog });
+before.route.tier.id;   // 'hard'
+before.skills;          // [ { id: 'browser', ... } ]
+before.admitted;        // only the memories this turn actually needs
+
+// J4 + J7 on what a tool just returned.
+const filtered = await jevusher.filterToolResult({ goal: turn, chunks, source: "web" });
+filtered.blocked;       // chunks caught issuing instructions to the agent
+filtered.admitted;      // what is worth putting in the transcript
+
+// J6 before the next expensive turn.
+const { shouldStop, reason } = await jevusher.shouldStop({ goal, work, nextAction });
+
+// J5 instead of paying a big model to read the whole transcript.
+const { keep, summarize, drop } = await jevusher.beforeCompact({ goal, blocks });
+
+jevusher.report();      // tokens offered vs sent, per lens, priced
+```
+
+Live run of exactly that, against `api.typesafe.ai` — see [`examples/end-to-end.ts`](examples/end-to-end.ts):
+
+```
+turn: Users report the login page redirects in a loop, but only on Safari. Find and fix it.
+
+J1 route    : hard (conf 0.95, needsFiles 0.88, needsTools 0.76)
+J2 gate     : browser [selected]                    <- out of git/browser/xlsx/pdf/slides
+J3 memory   : mem:redirect, mem:safari, mem:cookie  <- dropped tailwind, standup
+J7 screen   : doc:evil injection=0.98 jailbreak=0.99 harm=2.00 -> block
+J4 filter   : admitted doc:itp                      <- dropped the sourdough recipe
+J6 stop     : shouldStop=true reason=looping (looping 0.96)
+J5 compact  : keep=[t6] summarize=[t1,t3,t4,t5] drop=[t2]
+```
+
+### Individually
+
+```ts
+import { Usher, Router, Gate, Filter, Compactor, StopGate, Screen } from "jevusher";
+
+const { admitted, verdicts } = await new Usher().admit({
   goal: "Why does the login redirect loop on Safari?",
   candidates: [
     { id: "mem:1", text: "Session cookie SameSite was changed to Strict in March." },
     { id: "mem:2", text: "We use Tailwind for styling." },
-    { id: "mem:3", text: "Safari blocks third-party cookies by default." },
   ],
   budget: 4000,
 });
-
-console.log(admitted.map((c) => c.id));      // [ 'mem:1', 'mem:3' ]
-console.log(tokensOffered, "->", tokensAdmitted);
 ```
 
-Every candidate comes back with a verdict, so you can log and tune:
+Every lens returns per-item verdicts with the score, the confidence and the reason, so you can log
+and tune rather than trust:
 
-```ts
-for (const v of verdicts) {
-  console.log(v.id, v.score?.toFixed(2), v.confidence?.toFixed(2), v.reason);
-}
-// mem:1  2.00  0.91  admitted
-// mem:3  1.84  0.88  admitted
-// mem:2  0.11  0.94  below-threshold
+```
+mem:1  2.00  0.91  admitted
+mem:2  0.11  0.94  below-threshold
 ```
 
-## How it works
+## Fail open, except when you shouldn't
 
-One request. `state` carries the goal and every candidate; the candidates are ingested **once** and
-all questions are evaluated against them in parallel.
+**Admission lenses fail open.** Dropping material the model needed costs a wrong answer and a
+retry — a whole extra expensive turn. Admitting material it did not need costs a few hundred
+tokens. The asymmetry is enormous, so uncertainty resolves toward admission, and a provider
+outage degrades to *no lens installed* rather than to an empty context.
 
-- One **Score** per candidate: *irrelevant → background → directly needed*.
-- One **Noul**: *does this goal need any of this material at all?* When the answer is a clear no,
-  everyone is turned away and the model answers from its own knowledge.
-- Your code does the packing. Candidates sort by score and fill the token budget; the rest are
-  turned away with a reason.
+**Selection lenses fail closed.** Surfacing the wrong tool is not free: it pollutes the prompt and
+invites a wrong call. When `Gate` is unsure it surfaces nothing, which is a valid answer.
 
-Sets larger than `batchSize` (default 64) are split into parallel requests automatically.
+**`Compactor` never drops on an unsure verdict** — it demotes to `summarize`, the safe middle rung.
 
-## Options
+**`Screen` reports `unavailable`, never `pass`,** when it could not run. And `pass` means
+*nothing detected*, never *safe to obey*. Fetched content is still data after it passes.
+
+## Claude Code
+
+```bash
+npx jevusher install          # project   .claude/settings.json
+npx jevusher install --global # user      ~/.claude/settings.json
+npx jevusher doctor           # key, connectivity, store contents
+npx jevusher report           # what the lenses have actually saved
+```
+
+| hook | lens | what it does |
+|---|---|---|
+| `UserPromptSubmit` | J1 J2 J3 | injects the routing hint, the one relevant capability, and the memories that earned a place, as `additionalContext`. Never blocks a prompt. |
+| `PostToolUse` | J7 | warns Claude when web/MCP output is issuing instructions. Matcher `WebFetch\|WebSearch\|mcp__.*`. |
+| `Stop` | J6 | not installed by default — see below. |
+
+Feed it:
+
+```bash
+~/.claude/jevusher/memory.jsonl    {"id":"...","text":"..."}
+~/.claude/jevusher/catalog.jsonl   {"id":"...","name":"...","summary":"...","detail":"..."}
+```
+
+### What the hooks genuinely cannot do
+
+Worth stating plainly, because the honest limits are the useful part:
+
+- **`Stop` cannot stop early.** Claude Code's Stop hook can only *refuse to let a turn end*. So J6
+  runs inverted there — it blocks stopping when the goal is clearly unmet. Real early stopping
+  needs SDK-level control of the loop. It is off by default because it fights the agent more often
+  than it helps.
+- **`PreCompact` cannot steer compaction.** It can block it, nothing more. `Compactor` is for
+  custom agents and SDK loops, not for the Claude Code hook.
+- **`PostToolUse` fires after the tool ran**, so it cannot keep output out of the transcript. It
+  can only annotate. J4's real value is in agents you control, where you filter before appending.
+- **J1 is advisory in a hook.** It injects a suggestion; it does not switch the model for you.
+
+## Measure it — including this project's claims
+
+The number that matters is **tokens-into-the-expensive-model per turn** and **$ per completed
+task**, not how many Jev calls you made.
+
+```bash
+npx jevusher report
+```
+
+```
+  offered to model : 261 tok
+  actually sent    : 118 tok
+  kept out         : 143 tok
+  jev read         : 6,866 tok in 7 requests
+  net              : $0.00186
+```
+
+That example is a toy, and its numbers are close to noise: Jev read 6,866 tokens to keep 143 out.
+**On small inputs these lenses lose money.** They pay off where the inputs are actually big — a
+200-skill catalog is ~20k tokens in every system prompt, an unfiltered `grep` or page fetch is
+routinely 10k+, and a retry turn on Opus dwarfs all of it. Run `report` on your own workload
+before believing any of it, this README included.
+
+## Reference
+
+### `admit(options)`
 
 | option | default | meaning |
 |---|---|---|
-| `goal` | — | what the expensive model is trying to do; relevance is judged against this |
+| `goal` | — | what the expensive model is trying to do |
 | `candidates` | — | `{ id, text, tokens?, meta? }[]` |
 | `budget` | `4000` | ceiling on admitted tokens |
 | `threshold` | `1.5` | minimum score on the levels scale |
 | `minConfidence` | `0.55` | below this, the score is not trusted |
 | `failOpen` | `true` | what to do with unsure verdicts and provider failures |
 | `checkNeed` | `true` | also ask whether the goal needs context at all |
-| `needThreshold` | `0.15` | turn everyone away below this need probability |
-| `levels` | 3 defaults | override the relevance rubric |
 | `batchSize` | `64` | candidates per request |
 
-## Fail open, always
+Verdict reasons: `admitted`, `low-confidence-admitted`, `below-threshold`,
+`low-confidence-turned-away`, `over-budget`, `goal-needs-no-context`, `provider-error-admitted`.
 
-`failOpen: true` is the default and should usually stay that way.
+### CLI
 
-Dropping material the model needed costs a wrong answer and a retry — a whole extra turn on an
-expensive model. Admitting material it did not need costs a few hundred tokens. The asymmetry is
-enormous, so uncertainty resolves toward admission, and a provider outage degrades to *no usher
-installed* rather than to an empty context.
+Every lens is scriptable — JSON on stdin, JSON on stdout:
 
-## Verdict reasons
+```bash
+echo '{"goal":"g","candidates":[{"id":"a","text":"..."}]}' | npx jevusher admit
+echo '{"turn":"rename the getter"}' | npx jevusher route
+```
 
-| reason | meaning |
-|---|---|
-| `admitted` | scored above threshold with trusted confidence |
-| `low-confidence-admitted` | Jev was unsure; fail-open let it in |
-| `below-threshold` | confidently judged not needed |
-| `low-confidence-turned-away` | unsure, and `failOpen` was off |
-| `over-budget` | earned a place but did not fit |
-| `goal-needs-no-context` | the need check said the goal is self-contained |
-| `provider-error-admitted` | Jev was unreachable; admitted without judgment |
+`route` · `admit` · `gate` · `screen` · `stop` · `compact` · `report` · `doctor` · `install`
 
-## Roadmap
+## Design notes
 
-Jevusher starts with memory recall because it is self-contained and measurable. The same admission
-primitive generalizes:
-
-- [x] **Memory / retrieval rerank** — score recalled items, admit the top under budget
-- [ ] **Tool-result filtering** — grep hits, page fetches, log dumps, scored before they land
-- [ ] **Compaction survivors** — score transcript blocks `drop | summarize | keep`
-- [ ] **Stop gate** — *has the goal been met?* Ending a loop one turn early beats every token saving
-- [ ] **Injection screening** — hostile instructions in fetched content, caught on the way in
-- [ ] Adapters: Claude Code hook, MCP server, `claude-mem` store
-
-## Measure it
-
-The number that matters is **tokens-into-the-expensive-model per turn**, and **$ per completed
-task** — not how many Jev calls you made. `admit()` returns `tokensOffered`, `tokensAdmitted` and
-`jevUsage` so you can log both sides from day one.
-
-Be skeptical of savings claims, including this project's. Measure on your own workload.
+[`docs/architecture.md`](docs/architecture.md) — the seven insertion points, the economics, and
+an analysis of [JevRouter](https://github.com/BillionsBobby/JevRouter), which solves the dispatch
+half and which Jevusher is deliberately complementary to.
 
 ## License
 
