@@ -582,9 +582,14 @@ function renderRouting(routing) {
       ? "JEV model choice used"
       : "Baseline model retained";
   $("routing-reason").textContent =
-    typeof routing.reason === "string"
-      ? routing.reason
-      : "Inspect the paired task checks before judging the model choice.";
+    {
+      "confident-route": "JEV’s decision met the confidence threshold.",
+      "uncertain-route": "JEV was uncertain, so the baseline model was kept.",
+      "missing-api-key": "No JEV key was available. The baseline model was kept.",
+      "prompt-too-large": "This prompt exceeds the routing limit. The baseline model was kept.",
+      "routing-timeout": "JEV did not respond in time. The baseline model was kept.",
+      "provider-unavailable": "JEV was unavailable. The baseline model was kept.",
+    }[routing.reason] || "Inspect the paired task checks before judging the model choice.";
   $("routing-confidence").textContent =
     typeof routing.confidence === "number" &&
     Number.isFinite(routing.confidence)
