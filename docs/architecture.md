@@ -1,8 +1,8 @@
 # Jevusher — the context doorman
 
-*Working title for the product and GitHub org: **Jevusher** (Jev + usher).*
+*Product and GitHub name: **Jevusher** (Jev + usher).*
 An usher does not decide the show; it decides who gets through the door and where they sit.
-That is exactly the role: **JevRouter decides what the agent does, Jevusher decides what the agent reads.**
+Dispatch decides what the agent **does**. Jevusher decides what the agent **reads**.
 
 ## Positioning Jev to cut Claude cost
 
@@ -108,71 +108,6 @@ $ per completed task. Without the baseline none of the above is provable.
 
 ---
 
-# Prior art: JevRouter (jevrouter.co)
-
-`BillionsBobby/JevRouter` — MIT, TypeScript, ~2.7k LOC src, 87 stars, active (pushed 2026-09-19).
-`npx --yes github:BillionsBobby/JevRouter agent start --agent claude`
-
-## What it already does — J1 and J2
-
-A local **decision/dispatch** layer between the agent host and Jev:
-normalizes candidates (models, MCP tools, skills, plugins, subagents) into capability manifests,
-builds Choice questions, preserves raw probabilities/confidence, applies local policy + permission +
-risk + confidence gates, does multi-step plans with beam search and diversity-penalty reranking over
-candidates, caches by provider+state+candidate snapshot, and returns a decision handoff.
-Default mode is `decision_only` — it never executes side effects itself.
-
-**Verdict: adopt, don't rebuild.** J1 (model routing) and J2 (tool/skill/MCP gating) are done,
-and done reasonably — policy gates and confidence handling are the parts that are tedious to get right.
-
-## What it does NOT do — J3 through J7
-
-Confirmed by reading the source tree: no memory layer, no retrieval reranking, no context
-pruning, no compaction control, no tool-result filtering, no stop gate, no guardrails.
-Its only "rerank" is diversity-penalty reranking of *capability candidates*, not of retrieved content.
-
-**JevRouter decides what the agent should DO. Nothing yet decides what the agent should READ.**
-
-That second half is where the Claude bill actually lives:
-
-| Layer | Who owns it | Token impact |
-|---|---|---|
-| J1 model routing | JevRouter | picks a cheaper model per turn |
-| J2 tool/skill gating | JevRouter | catalog size in system prompt |
-| **J3 memory recall rerank** | **unclaimed** | injected memory per session |
-| **J4 tool-result filtering** | **unclaimed** | usually the largest single sink |
-| **J5 compaction survivors** | **unclaimed** | whole-transcript LLM pass |
-| **J6 stop/continue gate** | **unclaimed** | whole turns, not tokens |
-| J7 guardrails | unclaimed (TypeSafe cookbook exists) | replaces an LLM safety pass |
-
-## Read their numbers carefully
-
-- **"Save 99.97% of your tokens"** — their own method note says this is a *directional estimate*
-  for the **decision-layer** workflow when Jev replaces GPT-6 as the router. It is savings on the
-  cost of *making the routing decision*, not on your agent's context. Routing decisions were never
-  the expensive part. Do not quote this figure as agent-cost savings.
-- **Toolathlon benchmark, 10 tasks, first five tool calls:** Jev serial 38% position-wise vs
-  DeepSeek V4.1 Flash 24%; prefix LCP 0.9 vs 0.5; 5.5x faster (1.58s vs 8.65s); 7x cheaper
-  ($0.0058 vs ~$0.0407 per task).
-- 38% absolute is low. It beats the baseline, but it means **confidence gating is mandatory, not
-  optional** — a wrong route costs a whole wasted Opus turn, which dwarfs the routing saving.
-  n=10 tasks is not a benchmark you should plan capacity against.
-
-## Revised position
-
-1. **Take JevRouter for J1/J2.** Wire it up, keep `decision_only`, tune the confidence floor high.
-2. **Build the context layer (J3–J6) as the differentiator.** Same Jev primitives, different target:
-   not "which capability", but "which tokens deserve to enter the window."
-   Start with J3 (memory rerank over claude-mem's store) — self-contained, no harness changes.
-3. **Instrument both.** Their 38%/99.97% numbers are not transferable to your workload.
-   Log tokens-into-Claude per turn and $/completed-task before and after.
-
-A context layer is also complementary rather than competing: it can ship as a JevRouter-adjacent
-package, or upstream into it, since it consumes the same provider config and API key.
-
-
----
-
 # Naming: Jevusher
 
 **Product + GitHub org:** `jevusher`. **npm:** `jevusher` / `@jevusher/*`.
@@ -182,8 +117,8 @@ package, or upstream into it, since it consumes the same provider config and API
 - **Says the job.** An usher controls the door and the seating. Jevusher controls what enters the
   context window and in what order. The one-line pitch writes itself: *the doorman for your
   context window.*
-- **Stakes out the unclaimed half.** JevRouter = dispatch. Jevusher = admission. Complementary
-  names, no collision, obvious co-existence story ("route with JevRouter, admit with Jevusher").
+- **Stakes out the neglected half.** Dispatch decides what runs; admission decides what is read.
+  The name says which one this is.
 - **Carries the Jev prefix**, so it reads as part of the ecosystem without implying it is official
   TypeSafe software. Keep that distinction explicit in the README.
 - Verbs fall out naturally for the API surface: `usher.admit()`, `usher.seat()`, `usher.turnAway()`.
@@ -206,5 +141,5 @@ ones that get sniped.
 
 "Jev" is TypeSafe's model name, not yours. Before putting the name on anything public, check
 TypeSafe's trademark/branding policy in their [legal page](https://docs.typesafe.ai/legal.md) and
-state plainly in the README that Jevusher is an independent project that *uses* Jev. JevRouter
-has the same exposure and has not been challenged, which is weak evidence but not permission.
+state plainly in the README that Jevusher is an independent project that *uses* Jev. The README
+already carries that note.

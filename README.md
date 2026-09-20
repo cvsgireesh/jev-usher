@@ -20,21 +20,14 @@ model read only what earned its place.
 > Jevusher is an independent project. It is not affiliated with or endorsed by TypeSafe.
 > "Jev" is TypeSafe's model name.
 
-## The gap this fills
+## What it governs
 
-[JevRouter](https://github.com/BillionsBobby/JevRouter) already routes **decisions** — which model,
-which tool, which subagent. That is the dispatch half, and it is solved.
+Most cost work on agents goes into **dispatch** — which model, which tool, which subagent. That is
+only half the bill, and for a coding agent usually the smaller half. A dispatch decision costs a
+few hundred tokens. A 40k-token system prompt re-read every turn, a memory digest injected
+wholesale, and an unfiltered `grep` dump do not.
 
-Nothing yet governs the **admission** half:
-
-| | decides | owned by |
-|---|---|---|
-| Dispatch | what the agent *does* | JevRouter |
-| **Admission** | what the agent *reads* | **Jevusher** |
-
-For a coding agent the admission half is usually the larger bill. A routing decision costs a few
-hundred tokens. A 40k-token system prompt re-read every turn, a memory digest injected wholesale,
-and an unfiltered `grep` dump do not.
+Jevusher governs the other half: **admission**. Not what the agent does — what it reads.
 
 ## Install
 
@@ -233,8 +226,7 @@ echo '{"turn":"rename the getter"}' | npx jevusher route
 ## Design notes
 
 [`docs/architecture.md`](docs/architecture.md) — the seven insertion points, the economics, and
-an analysis of [JevRouter](https://github.com/BillionsBobby/JevRouter), which solves the dispatch
-half and which Jevusher is deliberately complementary to.
+why each lens fails the way it does.
 
 ## License
 
