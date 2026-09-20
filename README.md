@@ -1,21 +1,26 @@
 # jev-usher — model routing and context admission for Claude Code
 
-**26 live paired comparisons passed: 13 synthetic tasks tested with filtering
-alone and with routing plus filtering.**
+**26 live paired comparisons passed their task checks: 13 synthetic tasks tested
+with filtering alone and with routing plus filtering.**
 
 The doorman for your context window. jev-usher routes clear tasks to a suitable
 Claude model and filters noisy tool output, with originals kept for recovery.
 TypeSafe's JEV judges relevance; deterministic rules decide what to send.
 
-| Mode | Whole-run Claude tokens, without → with | Lower / unchanged / higher |
-|---|---|---|
-| Filtering; Sonnet on both sides | 105,067 → 101,792 (**3.1% fewer**) | 4 / 7 / 2 |
-| Routing + filtering; Sonnet baseline | 105,098 → 102,650 (**2.3% fewer**) | 6 / 5 / 2 |
+| Mode | Whole-run Claude tokens, without → with | Tokens: lower / unchanged / higher | Total elapsed time, without → with |
+|---|---|---|---|
+| Filtering; Sonnet on both sides | 105,067 → 101,792 (**3.1% fewer**) | 4 / 7 / 2 | 49.834 → 60.333 s (**21.1% longer**) |
+| Routing + filtering; Sonnet baseline | 105,098 → 102,650 (**2.3% fewer**) | 6 / 5 / 2 | 51.283 → 67.838 s (**32.3% longer**) |
 
-Totals include input, output, and cache tokens. All 52 answers passed the task
-checks, but the median token change was zero in both modes. Recovery increased
-usage in four pairs. These are single-pass synthetic results, not a savings or
-reliability guarantee. [Results and reproduction](docs/results.md).
+Each row totals 13 pairs. Token counts include input, output, and cache activity;
+time includes startup, hooks, recovery, and routing where enabled. Filtering was
+slower in 11 pairs and faster in two. Combined mode was slower in all 13 pairs.
+No pair reduced both tokens and time; this suite does not demonstrate a speed win.
+
+All 52 answers passed the task checks. **Passing a task check does not mean the
+optimization helped.** Median token change was zero in both modes, and recovery
+increased usage in four pairs. These are single-pass synthetic results, not a
+savings or reliability guarantee. [Results and reproduction](docs/results.md).
 
 Try it with the local comparison UI, launch a Claude Code session, or use the
 TypeScript library in your own agent.

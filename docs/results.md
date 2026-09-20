@@ -3,19 +3,33 @@
 On September 20, 2026, all **26 live paired comparisons** passed their fixture
 checks at [preview revision 6617f06](https://github.com/cvsgireesh/jev-usher/commit/6617f06e7abc4e49246b7e65fb12f39c9006aa51). The suite tested 13 synthetic tasks once with context filtering and once
 with routing plus filtering. Each pair ran Claude without and with jev-usher;
-all 52 answers passed the expected-field and exact-value checks.
+all 52 answers passed the expected-field and exact-value checks. Passing these
+checks establishes task correctness for the fixtures, not an optimization benefit.
 
-## Whole-run token use
+## Whole-run tokens and elapsed time
 
-| Mode | Without | With | Reduction | Pairs with lower / unchanged / higher use |
-|---|---:|---:|---:|---|
-| Filtering | 105,067 | 101,792 | 3.1% | 4 / 7 / 2 |
-| Routing + filtering | 105,098 | 102,650 | 2.3% | 6 / 5 / 2 |
+| Mode | Claude tokens, without → with | Tokens: lower / unchanged / higher | Total elapsed time, without → with | Pairs: slower / faster |
+|---|---|---|---|---|
+| Filtering | 105,067 → 101,792 (3.1% fewer) | 4 / 7 / 2 | 49.834 → 60.333 s (21.1% longer) | 11 / 2 |
+| Routing + filtering | 105,098 → 102,650 (2.3% fewer) | 6 / 5 / 2 | 51.283 → 67.838 s (32.3% longer) | 13 / 0 |
 
 These totals add Claude's input, output, cache-read, and cache-creation tokens
 across each complete run. They include recovery reads. They are not the smaller
 text estimates produced by the admission policy, and they do not establish a
 subscription-dollar saving. The median token change was **zero** in both modes.
+
+Elapsed time measures each Claude process from startup to completion, including
+hooks and recovery reads. For combined mode, the routing duration is added once
+to the with-jev-usher run. Filtering time already occurs inside the Claude run
+and is not added again. The table sums the 13 runs on each side; it does not
+report the average task duration.
+
+No elapsed-time result was unchanged. Median added time was 0.502 seconds for
+filtering and 0.852 seconds for combined mode. **No pair reduced both tokens and
+time.** This suite does not demonstrate a speed win: combined mode was slower
+on every task, and filtering's two faster runs used the same number of tokens.
+
+## Token counts by task
 
 Each cell below shows **without → with** tokens. The totals include every row,
 including increases.
