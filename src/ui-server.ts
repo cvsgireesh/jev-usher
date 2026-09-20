@@ -34,6 +34,7 @@ export async function startUi(options: UiOptions = {}) {
   const assets = new Map([
     ['/', { file: 'index.html', type: 'text/html; charset=utf-8' }],
     ['/app.js', { file: 'app.js', type: 'text/javascript; charset=utf-8' }],
+    ['/metrics.js', { file: 'metrics.js', type: 'text/javascript; charset=utf-8' }],
     ['/styles.css', { file: 'styles.css', type: 'text/css; charset=utf-8' }],
   ]);
 
@@ -52,7 +53,7 @@ export async function startUi(options: UiOptions = {}) {
     res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
     if (closing) return json(res, 503, { error: 'The local test server is shutting down.' });
     if (req.headers.host !== new URL(origin).host || req.headers.origin && req.headers.origin !== origin || req.headers['sec-fetch-site'] === 'cross-site') {
-      return json(res, 403, { error: 'Open the local URL printed by jevusher ui.' });
+      return json(res, 403, { error: 'Open the local URL printed by jev-usher ui.' });
     }
     const path = (req.url ?? '').split('?')[0]!;
     if (req.method === 'GET' && assets.has(path)) {

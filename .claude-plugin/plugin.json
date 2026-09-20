@@ -1,9 +1,9 @@
 {
-  "name": "jevusher",
+  "name": "jev-usher",
   "version": "0.1.0",
-  "description": "Recoverable JEV context filtering for Claude Code tools, explicit memory admission, and optional screening.",
+  "description": "JEV-powered model routing and recoverable context filtering for Claude Code, with a local comparison UI.",
   "author": { "name": "cvsgireesh" },
-  "homepage": "https://github.com/cvsgireesh/jevusher",
-  "repository": "https://github.com/cvsgireesh/jevusher",
+  "homepage": "https://github.com/cvsgireesh/jev-usher",
+  "repository": "https://github.com/cvsgireesh/jev-usher",
   "license": "MIT"
 }

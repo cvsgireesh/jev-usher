@@ -80,7 +80,7 @@ export async function filterText(options: {
         const from = chunks[i]!.startLine;
         let to = chunks[i]!.endLine;
         while (i + 1 < chunks.length && !keep[i + 1]) to = chunks[++i]!.endLine;
-        selected += `\n[jevusher: source lines ${from}-${to} omitted; full output is recoverable.]\n`;
+        selected += `\n[jev-usher: source lines ${from}-${to} omitted; full output is recoverable.]\n`;
       }
     }
   }

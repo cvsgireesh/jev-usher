@@ -9,24 +9,24 @@ import { Ledger, type LedgerEntry } from "./ledger.js";
 import { onPostToolUse, onPreToolUse, onStop, onUserPromptSubmit, type HookInput } from "./hook.js";
 import { jevusherHome, ledgerPath, readJsonl } from "./store.js";
 
-const USAGE = `jevusher — the doorman for your context window
+const USAGE = `jev-usher — the doorman for your context window
 
-  jevusher install [--global]     wire the hooks into Claude Code settings
-  jevusher uninstall [--global]   remove Jevusher hooks, keeping other settings
-  jevusher report                 estimated context volume and provider usage
-  jevusher doctor                 check key, connectivity, and store files
-  jevusher ui [--port 4318]        local live JEV / Claude comparison UI
-  jevusher claude <prompt>        start Claude with JEV model routing and filtering
+  jev-usher install [--global]     wire the hooks into Claude Code settings
+  jev-usher uninstall [--global]   remove jev-usher hooks, keeping other settings
+  jev-usher report                 estimated context volume and provider usage
+  jev-usher doctor                 check key, connectivity, and store files
+  jev-usher ui [--port 4318]        local live JEV / Claude comparison UI
+  jev-usher claude <prompt>        start Claude with JEV model routing and filtering
 
-  jevusher hook <event>           run a hook; reads hook JSON on stdin
+  jev-usher hook <event>           run a hook; reads hook JSON on stdin
                                   events: user-prompt-submit, pre-tool-use, post-tool-use, stop
 
-  jevusher route                  JSON on stdin -> routing decision
-  jevusher admit                  JSON on stdin -> admission decision
-  jevusher gate                   JSON on stdin -> capability selection
-  jevusher screen                 JSON on stdin -> injection findings
-  jevusher stop                   JSON on stdin -> stop decision
-  jevusher compact                JSON on stdin -> compaction triage
+  jev-usher route                  JSON on stdin -> routing decision
+  jev-usher admit                  JSON on stdin -> admission decision
+  jev-usher gate                   JSON on stdin -> capability selection
+  jev-usher screen                 JSON on stdin -> injection findings
+  jev-usher stop                   JSON on stdin -> stop decision
+  jev-usher compact                JSON on stdin -> compaction triage
 
 Environment:
   JEV_API_KEY        required (TYPESAFE_API_KEY also accepted)
@@ -62,10 +62,10 @@ export async function main(argv: string[]): Promise<number> {
       return launchClaude(rest);
     }
     case "ui": {
-      if (rest.length && (rest.length !== 2 || rest[0] !== '--port' || !/^\d+$/.test(rest[1]!))) throw new Error('Usage: jevusher ui [--port 4318]');
+      if (rest.length && (rest.length !== 2 || rest[0] !== '--port' || !/^\d+$/.test(rest[1]!))) throw new Error('Usage: jev-usher ui [--port 4318]');
       const { startUi } = await import('./ui-server.js');
       const server = await startUi({ port: rest[1] === undefined ? 4318 : Number(rest[1]) });
-      process.stdout.write(`Jevusher local test UI: ${server.url}\nUses live JEV credits and your local Claude subscription only when you start a test.\nPress Ctrl+C to stop. Keys and run results are not saved by the UI.\n`);
+      process.stdout.write(`jev-usher local test UI: ${server.url}\nUses live JEV credits and your local Claude subscription only when you start a test.\nPress Ctrl+C to stop. Keys and run results are not saved by the UI.\n`);
       let closing = false;
       const close = () => { if (!closing) { closing = true; void server.close().then(() => { process.exitCode = 0; }); } };
       process.once('SIGINT', close);
@@ -127,7 +127,7 @@ async function hook(event: string | undefined): Promise<number> {
     const output = await handler(input);
     if (Object.keys(output).length > 0) process.stdout.write(JSON.stringify(output));
   } catch (error) {
-    process.stderr.write(`[jevusher] ${(error as Error).message}\n`);
+    process.stderr.write(`[jev-usher] ${(error as Error).message}\n`);
   }
   return 0;
 }
@@ -179,7 +179,7 @@ async function report(): Promise<number> {
     requests: data.requests,
   }));
 
-  process.stdout.write(`\njevusher ledger — ${summary.entries} entries\n\n`);
+  process.stdout.write(`\njev-usher ledger — ${summary.entries} entries\n\n`);
   if (rows.length) console.table(rows);
   process.stdout.write(
     `\n  offered to model : ${summary.offered.toLocaleString()} tok` +
@@ -231,10 +231,10 @@ async function install(global: boolean, remove = false): Promise<number> {
     ? join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "settings.json")
     : join(process.cwd(), ".claude", "settings.json");
   if (process.platform === "win32") throw new Error("Settings installation currently supports macOS and Linux; use the plugin on other platforms.");
-  const executable = fileURLToPath(new URL("../bin/jevusher.mjs", import.meta.url));
+  const executable = fileURLToPath(new URL("../bin/jev-usher.mjs", import.meta.url));
   const command = `${shellQuote(process.execPath)} ${shellQuote(executable)}`;
   await configureHooks(settingsPath, command, remove);
-  process.stdout.write(`${remove ? "Removed Jevusher hooks from" : "Installed local Jevusher hooks in"} ${settingsPath}\n`);
+  process.stdout.write(`${remove ? "Removed jev-usher hooks from" : "Installed local jev-usher hooks in"} ${settingsPath}\n`);
   if (!remove) process.stdout.write(
     "Keep this installation at its current path. Existing settings were backed up.\n" +
     "Configure memory.jsonl and catalog.jsonl under JEVUSHER_HOME. These records and\n" +
@@ -242,6 +242,6 @@ async function install(global: boolean, remove = false): Promise<number> {
     "MCP tools additionally require an exact-name JEVUSHER_MCP_TOOLS allowlist.\n" +
     "Recoverable tool-output filtering requires JEVUSHER_FILTER=1. Filtering sends your\n" +
     "session prompts and supported output to TypeSafe; originals stay in the local recovery store.\n" +
-    "Run jevusher doctor. Prompt-hook routing and skill hints are advisory; the claude launcher selects a model. Stop is not installed.\n");
+    "Run jev-usher doctor. Prompt-hook routing and skill hints are advisory; the claude launcher selects a model. Stop is not installed.\n");
   return 0;
 }

@@ -9,8 +9,8 @@ body:
     id: versions
     attributes:
       label: Versions and platform
-      description: Jevusher version or commit, Node version, operating system, and Claude version if relevant.
-      placeholder: Jevusher commit …; Node …; macOS/Linux …; Claude …
+      description: jev-usher version or commit, Node version, operating system, and Claude version if relevant.
+      placeholder: jev-usher commit …; Node …; macOS/Linux …; Claude …
     validations:
       required: true
   - type: dropdown

@@ -87,7 +87,7 @@ export async function secureDirectory(path: string): Promise<void> {
   while (true) {
     try {
       const info = await lstat(current);
-      if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o077) !== 0) throw new Error("Jevusher storage must use private real directories (0700)");
+      if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o077) !== 0) throw new Error("jev-usher storage must use private real directories (0700)");
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       missing.push(current);
@@ -99,5 +99,5 @@ export async function secureDirectory(path: string): Promise<void> {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   });
   const info = await lstat(path);
-  if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o077) !== 0) throw new Error("Jevusher storage directory must be private (0700)");
+  if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o077) !== 0) throw new Error("jev-usher storage directory must be private (0700)");
 }

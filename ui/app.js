@@ -1,3 +1,5 @@
+import { comparisonMetrics } from "./metrics.js";
+
 const $ = (id) => document.getElementById(id);
 const state = {
   status: null,
@@ -11,49 +13,17 @@ const state = {
   keyBusy: false,
 };
 const number = (value) =>
-  typeof value === "number" && Number.isFinite(value)
+  Number.isFinite(value)
     ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value)
     : "—";
 const duration = (value) =>
-  typeof value === "number" && Number.isFinite(value)
-    ? value < 1000
-      ? `${Math.round(value)} ms`
-      : `${(value / 1000).toFixed(1)} s`
-    : "—";
-const money = (value) =>
-  typeof value === "number" && Number.isFinite(value)
-    ? `$${value.toFixed(value < 0.01 ? 6 : 4)}`
-    : "—";
+  Number.isFinite(value) ? `${(value / 1000).toFixed(1)} s` : "—";
 const modelName = (value) =>
-  typeof value === "string" && value
-    ? { sonnet: "Sonnet", opus: "Opus", haiku: "Haiku" }[value] || value
-    : "Unavailable";
-
-function testSettings() {
-  return {
-    baselineModel: $("baseline-model").value,
-    optimization: $("optimization").value,
-  };
-}
-
-function applyTestSettings(settings) {
-  if (["sonnet", "opus", "haiku"].includes(settings.baselineModel))
-    $("baseline-model").value = settings.baselineModel;
-  if (["combined", "context", "routing"].includes(settings.optimization))
-    $("optimization").value = settings.optimization;
-  updateOptimizationHint();
-}
-
-function updateOptimizationHint() {
-  $("optimization-hint").textContent = {
-    combined:
-      "Compare a fixed Claude model against JEV's model choice and context selection.",
-    context:
-      "Use the same Claude model for both runs. JEV selects the optimized run's context.",
-    routing:
-      "Give both runs the full source. JEV chooses the optimized run's Claude model.",
-  }[$("optimization").value];
-}
+  typeof value === "string"
+    ? ["sonnet", "opus", "haiku"]
+        .find((name) => value.toLowerCase().includes(name))
+        ?.replace(/^./, (letter) => letter.toUpperCase()) || value
+    : "Unknown model";
 
 async function api(path, options = {}) {
   const headers = { Accept: "application/json", ...options.headers };
@@ -69,7 +39,7 @@ async function api(path, options = {}) {
     });
   } catch {
     throw new Error(
-      "The local server is not responding. Make sure Jevusher is still running, then refresh the connection.",
+      "The local server is not responding. Restart jev-usher ui, then refresh this page.",
     );
   }
   let body;
@@ -77,15 +47,18 @@ async function api(path, options = {}) {
     body = await response.json();
   } catch {
     throw new Error(
-      "The local server returned an unreadable response. Restart Jevusher and try again.",
+      "The local server returned an unreadable response. Restart jev-usher ui and try again.",
     );
   }
-  if (!response.ok)
-    throw new Error(
+  if (!response.ok) {
+    const error = new Error(
       typeof body.error === "string"
         ? body.error
         : body.error?.message || `The request failed (${response.status}).`,
     );
+    error.status = response.status;
+    throw error;
+  }
   return body;
 }
 
@@ -96,59 +69,46 @@ function setError(message) {
 
 function updateControls() {
   const busy = Boolean(state.run) || state.keyBusy;
-  const ready = Boolean(state.status?.jevConfigured && state.scenario);
-  $("run-preview").disabled = busy || !ready;
-  $("run-compare").disabled =
-    busy ||
-    !ready ||
-    !state.status?.claude?.available ||
-    !state.status?.claude?.authenticated;
+  const ready =
+    state.status?.jevConfigured &&
+    state.status?.claude?.available &&
+    state.status?.claude?.authenticated;
+  $("run-compare").disabled = busy || !ready || !state.scenario;
   $("scenario").disabled = busy || !state.status?.scenarios?.length;
-  $("baseline-model").disabled = busy;
-  $("optimization").disabled = busy;
-  $("save-key").disabled = busy;
-  $("clear-key").disabled = busy;
-  $("api-key").disabled = Boolean(state.run);
-  $("refresh-status").disabled = busy;
-  $("run-preview").textContent =
-    state.run?.mode === "preview" ? "Previewing…" : "Preview with JEV";
-  $("run-compare").replaceChildren(
-    document.createTextNode(
-      state.run?.mode === "compare" ? "Comparing…" : "Compare with Claude",
-    ),
-  );
-  if (state.run?.mode !== "compare") {
-    const arrow = document.createElement("span");
-    arrow.setAttribute("aria-hidden", "true");
-    arrow.textContent = "→";
-    $("run-compare").append(arrow);
-  }
+  for (const id of [
+    "baseline-model",
+    "api-key",
+    "save-key",
+    "clear-key",
+    "refresh-status",
+  ])
+    $(id).disabled = busy;
+  $("run-compare").textContent = state.run ? "Comparing…" : "Run comparison →";
+  $("connection-status").textContent = state.status
+    ? ready
+      ? "Ready to compare"
+      : "Setup needed"
+    : "Connecting…";
 }
 
-async function refreshStatus(initial = false) {
+async function refreshStatus() {
   try {
     const status = await api("/api/status");
     state.status = status;
     state.csrfToken = status.csrfToken || null;
-    $("jev-dot").className =
-      `status-dot ${status.jevConfigured ? "is-ready" : "is-missing"}`;
     $("jev-status").textContent = status.jevConfigured
-      ? `${status.model || "JEV"} · key configured`
-      : "Add a key to run a test";
-    $("key-toggle").textContent = status.jevConfigured
-      ? "Change key"
-      : "Configure key";
+      ? "JEV key configured"
+      : "Add your JEV API key below.";
     $("clear-key").hidden = status.keySource !== "memory";
     const claude = status.claude || {};
     const connected = claude.available && claude.authenticated;
-    $("claude-dot").className =
-      `status-dot ${connected ? "is-ready" : "is-missing"}`;
     $("claude-status").textContent = connected
-      ? `Signed in locally${claude.version ? ` · ${claude.version}` : ""}`
+      ? `Claude is signed in locally${claude.version ? ` · ${claude.version}` : ""}`
       : claude.message ||
         (claude.available
-          ? "Run claude auth login in your terminal"
-          : "Install Claude Code to compare answers");
+          ? "Run claude auth login in your terminal."
+          : "Install Claude Code to compare answers.");
+    if (!status.jevConfigured || !connected) $("connection-setup").open = true;
     const previous = state.scenario?.id;
     const scenarios = Array.isArray(status.scenarios) ? status.scenarios : [];
     $("scenario").replaceChildren();
@@ -158,208 +118,124 @@ async function refreshStatus(initial = false) {
       option.textContent = scenario.title;
       $("scenario").append(option);
     }
-    if (scenarios.length) {
-      const selected =
-        scenarios.find((item) => item.id === previous) || scenarios[0];
+    const selected =
+      scenarios.find((item) => item.id === previous) || scenarios[0];
+    if (selected) {
       $("scenario").value = selected.id;
-      if (!state.scenario || state.scenario.id !== selected.id)
-        selectScenario(selected.id);
+      if (state.scenario?.id !== selected.id) selectScenario(selected.id);
     } else {
+      state.scenario = null;
       const option = document.createElement("option");
       option.textContent = "No scenarios available";
       $("scenario").append(option);
     }
-    if (initial && !status.jevConfigured) toggleKeyPanel(true);
     if (!state.run && status.run?.status === "running") {
-      if (
-        status.run.scenarioId &&
-        scenarios.some((item) => item.id === status.run.scenarioId)
-      ) {
+      if (["sonnet", "opus", "haiku"].includes(status.run.baselineModel))
+        $("baseline-model").value = status.run.baselineModel;
+      if (scenarios.some((item) => item.id === status.run.scenarioId)) {
         $("scenario").value = status.run.scenarioId;
         selectScenario(status.run.scenarioId);
       }
-      applyTestSettings(status.run);
       startPolling(status.run);
     }
     setError(null);
   } catch (error) {
     setError(error.message);
-    if (!state.status) {
-      $("jev-status").textContent = "Local server unavailable";
-      $("claude-status").textContent = "Local server unavailable";
-    }
   } finally {
     updateControls();
   }
 }
 
-function toggleKeyPanel(open) {
-  const show = typeof open === "boolean" ? open : $("key-panel").hidden;
-  $("key-panel").hidden = !show;
-  $("key-toggle").setAttribute("aria-expanded", String(show));
-  if (show) $("api-key").focus();
+function placeholder(prefix, message, status = "Ready") {
+  const hint = document.createElement("p");
+  hint.className = "empty-answer";
+  hint.textContent = message;
+  $(`${prefix}-output`).replaceChildren(hint);
+  $(`${prefix}-status`).textContent = status;
+  $(`${prefix}-status`).dataset.tone = "neutral";
 }
 
-function setMetric(id, value, description = "estimated tokens") {
-  const note = document.createElement("span");
-  note.textContent = description;
-  $(id).replaceChildren(document.createTextNode(number(value)), note);
-}
-
-function sourceItems(source) {
-  if (Array.isArray(source))
-    return source.map((item, index) =>
-      typeof item === "string"
-        ? { id: `source-${index + 1}`, text: item }
-        : item,
-    );
-  if (typeof source === "string") return [{ id: "Source", text: source }];
-  return [];
-}
-
-function renderSource(items, unavailable = false) {
-  const parent = $("source-items");
-  parent.replaceChildren();
-  if (!items.length) {
-    const message = document.createElement("p");
-    message.className = "source-placeholder";
-    message.textContent = "This scenario has no source to display.";
-    parent.append(message);
-    return;
+function resetResult() {
+  state.lastResult = null;
+  placeholder("baseline", "Claude’s answer will appear here.");
+  placeholder("filtered", "The same task, using jev-usher.");
+  $("baseline-model-label").textContent = modelName($("baseline-model").value);
+  $("filtered-model-label").textContent = "Automatic model choice";
+  for (const metric of ["tokens", "time", "quality"]) {
+    $(`${metric}-change`).textContent = "—";
+    $(`${metric}-values`).textContent = "Without — · With —";
+    $(`${metric}-card`).dataset.tone = "neutral";
   }
-  for (const item of items) {
-    const row = document.createElement("div");
-    row.className = "source-item";
-    const meta = document.createElement("div");
-    meta.className = "source-item-meta";
-    const id = document.createElement("span");
-    id.textContent = item.id || "Source";
-    meta.append(id);
-    if (["admit", "omit", "recover"].includes(item.decision)) {
-      const tag = document.createElement("span");
-      tag.className = `decision-tag decision-${unavailable ? "keep" : item.decision}`;
-      tag.textContent = unavailable
-        ? "Kept"
-        : {
-            admit: "Admitted",
-            omit: "Omitted",
-            recover: "Recovered",
-          }[item.decision];
-      meta.append(tag);
-    }
-    if (!unavailable && typeof item.score === "number") {
-      const score = document.createElement("span");
-      score.textContent = `Score ${item.score.toFixed(2)}`;
-      meta.append(score);
-    }
-    if (!unavailable && typeof item.confidence === "number") {
-      const confidence = document.createElement("span");
-      confidence.textContent = `${Math.round(item.confidence * 100)}% conf.`;
-      meta.append(confidence);
-    }
-    const content = document.createElement("div");
-    content.className = "source-text";
-    content.textContent = String(item.text ?? "");
-    row.append(meta, content);
-    parent.append(row);
-  }
-}
-
-function renderStrip(admission = null) {
-  const after = document.querySelector(".strip-after");
-  after.replaceChildren();
-  after.classList.toggle("is-pending", !admission);
-  if (!admission) {
-    for (let i = 0; i < 4; i++) after.append(document.createElement("i"));
-    return;
-  }
-  const offered = Math.max(0, Number(admission.offeredTokens) || 0);
-  const admitted = Math.max(0, Number(admission.admittedTokens) || 0);
-  const recovered = Math.max(0, Number(admission.recoveredTokens) || 0);
-  const total = Math.max(offered, admitted + recovered, 1);
-  if (admitted > 0) {
-    const chunk = document.createElement("i");
-    chunk.style.flex = String(admitted / total);
-    after.append(chunk);
-  }
-  if (recovered > 0) {
-    const chunk = document.createElement("i");
-    chunk.className = "is-recovered";
-    chunk.style.flex = String(recovered / total);
-    after.append(chunk);
-  }
-  const remaining = total - admitted - recovered;
-  if (remaining > 0) {
-    const empty = document.createElement("i");
-    empty.className = "strip-empty";
-    empty.style.flex = String(remaining / total);
-    after.append(empty);
-  }
+  $("result-summary").textContent = "Run a comparison to see what changes.";
+  $("jev-cost").textContent = "";
+  $("detail-summary").textContent = "";
+  $("usage-details").replaceChildren();
+  $("raw-result").hidden = true;
+  $("result-json").textContent = "";
+  $("download-report").disabled = true;
 }
 
 function selectScenario(id) {
   state.scenario =
     state.status?.scenarios?.find((item) => item.id === id) || null;
-  state.lastResult = null;
   $("scenario-description").textContent = state.scenario?.description || "";
-  $("task-prompt").textContent =
-    state.scenario?.prompt ||
-    "Choose a scenario to inspect its prompt and source.";
-  $("results").hidden = true;
-  $("routing-result").hidden = true;
-  $("admission-caption").textContent = "Waiting for a preview";
-  $("quality-note").textContent =
-    "Task quality still needs a Claude comparison.";
-  $("admission-scope").textContent =
-    "Source estimates only. Claude's full requests are measured separately.";
-  $("source-note").textContent =
-    "These fixtures contain synthetic data. JEV receives the prompt and source when you run a test.";
-  setMetric("metric-offered", null);
-  setMetric("metric-admitted", null);
-  setMetric("metric-recovered", null);
-  renderStrip();
-  renderSource(sourceItems(state.scenario?.source));
+  $("task-prompt").textContent = state.scenario?.prompt || "";
+  const source = state.scenario?.source;
+  $("source-text").textContent =
+    typeof source === "string"
+      ? source
+      : Array.isArray(source)
+        ? source
+            .map((item) =>
+              typeof item === "string"
+                ? item
+                : `${item.id || ""}\n${item.text || ""}`,
+            )
+            .join("\n\n")
+        : "";
+  resetResult();
   updateControls();
 }
 
-async function startRun(mode) {
-  if (state.run || !state.scenario) return;
+async function startRun() {
+  if (state.run || !state.scenario || $("run-compare").disabled) return;
   setError(null);
-  selectScenario(state.scenario.id);
-  const settings = testSettings();
-  state.run = { id: null, mode, ...settings };
+  resetResult();
+  const settings = {
+    scenarioId: state.scenario.id,
+    mode: "compare",
+    optimization: "combined",
+    baselineModel: $("baseline-model").value,
+  };
+  state.run = { id: null, ...settings };
   state.startedAt = Date.now();
+  placeholder("baseline", "Waiting for Claude…", "Waiting");
+  placeholder("filtered", "Waiting for Claude…", "Waiting");
   $("run-progress").hidden = false;
-  $("run-phase").textContent =
-    mode === "preview"
-      ? "Asking JEV what belongs in this context…"
-      : "Starting the paired Claude comparison…";
+  $("run-phase").textContent = "Starting comparison…";
   $("run-elapsed").textContent = "";
+  $("result-summary").textContent = "Comparison in progress.";
   $("cancel-run").disabled = true;
-  $("cancel-run").textContent = "Cancel test";
+  $("cancel-run").textContent = "Cancel";
   updateControls();
   try {
-    const run = await api("/api/runs", {
-      method: "POST",
-      body: JSON.stringify({
-        scenarioId: state.scenario.id,
-        mode,
-        ...settings,
-      }),
+    startPolling({
+      ...settings,
+      ...(await api("/api/runs", {
+        method: "POST",
+        body: JSON.stringify(settings),
+      })),
     });
-    startPolling({ ...run, mode, ...settings });
   } catch (error) {
     finishError(error.message);
   }
 }
 
 function startPolling(run) {
-  if (!run.id) {
-    finishError(
-      "The server did not return a run ID. Refresh the connection and try again.",
+  if (!run.id)
+    return finishError(
+      "No test ID was returned. Refresh the connections and try again.",
     );
-    return;
-  }
   state.run = run;
   state.startedAt ||= Date.now();
   $("run-progress").hidden = false;
@@ -375,26 +251,28 @@ async function pollRun() {
   try {
     const run = await api(`/api/runs/${encodeURIComponent(id)}`);
     if (state.run?.id !== id) return;
-    $("run-phase").textContent = run.phase || "The test is running…";
+    const phase = run.phase || "The comparison is running…";
+    $("run-phase").textContent = /choosing/.test(phase)
+      ? "JEV is choosing a model…"
+      : /baseline/.test(phase)
+        ? "Running Claude without jev-usher…"
+        : /running with/.test(phase)
+          ? "Running Claude with jev-usher…"
+          : phase;
     $("run-elapsed").textContent = duration(Date.now() - state.startedAt);
     if (run.status === "complete") {
       state.lastResult = run.result || {};
-      renderResult(state.lastResult, state.run.mode);
+      renderResult(state.lastResult);
       finishRun();
     } else if (run.status === "cancelled") {
       finishError(
-        "Test cancelled. Calls already sent may still use JEV credits or Claude allowance.",
+        "Comparison cancelled. Calls already sent may still use your allowance.",
       );
     } else if (run.status === "error") {
-      const error =
+      finishError(
         typeof run.error === "string"
           ? run.error
-          : run.error?.message ||
-            "The test could not finish. Check your connection and account allowance, then try again.";
-      finishError(
-        /run cancelled/i.test(error)
-          ? "Test cancelled. Calls already sent may still use JEV credits or Claude allowance."
-          : error,
+          : "The comparison could not finish. Check your connection and account allowance.",
       );
     } else {
       state.timer = setTimeout(() => {
@@ -419,228 +297,224 @@ function finishRun() {
 
 function finishError(message) {
   finishRun();
+  placeholder("baseline", "No completed comparison.", "Incomplete");
+  placeholder("filtered", "No completed comparison.", "Incomplete");
+  $("result-summary").textContent = "No complete result to compare.";
   setError(message);
 }
 
-function renderAnswer(prefix, answer = {}) {
-  const models = Array.isArray(answer.models)
-    ? answer.models.filter((model) => typeof model === "string")
+function renderAnswer(prefix, answer, passed, total) {
+  const parent = $(`${prefix}-output`);
+  const output = typeof answer?.output === "string" ? answer.output : "";
+  parent.replaceChildren();
+  let fields;
+  try {
+    fields = JSON.parse(
+      output
+        .trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/, ""),
+    );
+  } catch {
+    /* Plain text answers are displayed as received. */
+  }
+  if (
+    total !== null &&
+    passed === total &&
+    fields &&
+    typeof fields === "object" &&
+    !Array.isArray(fields) &&
+    Object.keys(fields).length &&
+    Object.values(fields).every(
+      (value) =>
+        value === null ||
+        ["string", "number", "boolean"].includes(typeof value),
+    )
+  ) {
+    const list = document.createElement("dl");
+    list.className = "answer-fields";
+    for (const [key, value] of Object.entries(fields)) {
+      const row = document.createElement("div");
+      const label = document.createElement("dt");
+      const content = document.createElement("dd");
+      label.textContent = key
+        .replace(/_/g, " ")
+        .replace(/^./, (letter) => letter.toUpperCase());
+      content.textContent =
+        typeof value === "boolean" ? (value ? "Yes" : "No") : String(value);
+      row.append(label, content);
+      list.append(row);
+    }
+    parent.append(list);
+  } else {
+    const text = document.createElement("pre");
+    text.textContent = output || "No answer recorded.";
+    parent.append(text);
+  }
+  const models = Array.isArray(answer?.models)
+    ? answer.models.filter((value) => typeof value === "string")
     : [];
   $(`${prefix}-model-label`).textContent = models.length
-    ? models.join(" · ")
-    : "Actual model unavailable";
-  $(`${prefix}-output`).textContent =
-    typeof answer.output === "string" ? answer.output : "No response recorded.";
-  const checks = $(`${prefix}-checks`);
-  checks.replaceChildren();
-  for (const check of answer.checks || []) {
-    const label = document.createElement("span");
-    label.className = `check${check.passed ? "" : " is-fail"}`;
-    label.textContent = `${check.passed ? "✓" : "×"} ${check.label}`;
-    checks.append(label);
-  }
-  const usage = answer.usage || {};
-  const values = [
-    ["Uncached input", number(usage.inputTokens)],
-    ["Output tokens", number(usage.outputTokens)],
-    ["Cache read", number(usage.cacheReadTokens)],
-    ["Cache write", number(usage.cacheWriteTokens)],
-    ["Elapsed", duration(answer.latencyMs)],
-  ];
-  const list = $(`${prefix}-usage`);
-  list.replaceChildren();
-  for (const [label, value] of values) {
-    const row = document.createElement("div");
-    const dt = document.createElement("dt");
-    dt.textContent = label;
-    const dd = document.createElement("dd");
-    dd.textContent = value;
-    row.append(dt, dd);
-    list.append(row);
-  }
+    ? [...new Set(models.map(modelName))].join(" · ")
+    : "Model not recorded";
+  $(`${prefix}-status`).textContent =
+    total === null ? "Not checked" : `${passed}/${total} checks passed`;
+  $(`${prefix}-status`).dataset.tone =
+    total === null ? "neutral" : passed === total ? "benefit" : "worse";
 }
 
-function renderResult(result, fallbackMode) {
-  applyTestSettings(result);
-  const resultScenario = state.status?.scenarios?.find(
-    (item) => item.id === result.scenarioId,
+function renderDifference(id, metric, unit) {
+  const { before, after, saved, percent, tone } = metric;
+  const format = unit === "tokens" ? number : duration;
+  $(`${id}-values`).textContent =
+    `Without ${format(before)} · With ${format(after)}`;
+  $(`${id}-card`).dataset.tone = tone;
+  let change = "Not measured";
+  if (saved === 0) change = "No change";
+  else if (saved !== null) {
+    const magnitude =
+      percent === null
+        ? format(Math.abs(saved))
+        : Math.abs(percent) < 0.1
+          ? "<0.1%"
+          : `${Math.abs(percent).toFixed(1).replace(/\.0$/, "")}%`;
+    change = `${magnitude} ${unit === "tokens" ? (saved > 0 ? "fewer" : "more") : saved > 0 ? "faster" : "slower"}`;
+  }
+  $(`${id}-change`).textContent = change;
+}
+
+function renderResult(result) {
+  const metrics = comparisonMetrics(result);
+  const quality = metrics.quality;
+  renderAnswer(
+    "baseline",
+    result.baseline,
+    quality.baselinePassed,
+    quality.baselineTotal,
   );
-  if (resultScenario && state.scenario?.id !== resultScenario.id) {
-    state.scenario = resultScenario;
-    $("scenario").value = resultScenario.id;
-    $("scenario-description").textContent = resultScenario.description || "";
-    $("task-prompt").textContent = resultScenario.prompt || "";
+  renderAnswer(
+    "filtered",
+    result.filtered,
+    quality.filteredPassed,
+    quality.filteredTotal,
+  );
+  renderDifference("tokens", metrics.tokens, "tokens");
+  renderDifference("time", metrics.time, "time");
+  const completeChecks =
+    quality.baselineTotal !== null && quality.filteredTotal !== null;
+  const answersPassed =
+    completeChecks &&
+    quality.baselinePassed === quality.baselineTotal &&
+    quality.filteredPassed === quality.filteredTotal;
+  $("quality-change").textContent = !completeChecks
+    ? "Not verified"
+    : answersPassed
+      ? "Both passed"
+      : "Check failed";
+  $("quality-card").dataset.tone =
+    quality.passed === true
+      ? "benefit"
+      : completeChecks && !answersPassed
+        ? "worse"
+        : "neutral";
+  const checks = (passed, total) =>
+    total === null ? "—" : `${passed}/${total}`;
+  $("quality-values").textContent =
+    `Without ${checks(quality.baselinePassed, quality.baselineTotal)} · With ${checks(quality.filteredPassed, quality.filteredTotal)}`;
+  $("result-summary").textContent =
+    quality.passed === true
+      ? "Both answers passed the checks."
+      : completeChecks && !answersPassed
+        ? "Answer checks failed. Inspect the answers before judging savings."
+        : answersPassed
+          ? "Answers passed; the comparison setup could not be verified."
+          : "This comparison could not be verified.";
+  $("jev-cost").textContent =
+    metrics.jevCost === null
+      ? "JEV cost estimate unavailable."
+      : `Estimated JEV cost for this comparison: $${metrics.jevCost.toFixed(6)}.`;
+  $("detail-summary").textContent = result.verdict?.summary || "";
+  const details = $("usage-details");
+  details.replaceChildren();
+  const addDetail = (label, value) => {
+    const row = document.createElement("div");
+    const term = document.createElement("dt");
+    const description = document.createElement("dd");
+    term.textContent = label;
+    description.textContent = value;
+    row.append(term, description);
+    details.append(row);
+  };
+  for (const [variant, label] of [
+    ["baseline", "Without"],
+    ["filtered", "With"],
+  ]) {
+    const answer = result[variant];
+    addDetail(`${label} · model`, answer?.models?.join(", ") || "Not recorded");
+    for (const [key, title] of [
+      ["inputTokens", "input"],
+      ["outputTokens", "output"],
+      ["cacheReadTokens", "cached input"],
+      ["cacheWriteTokens", "cache creation"],
+    ])
+      addDetail(`${label} · ${title}`, number(answer?.usage?.[key]));
   }
-  const admission = result.admission || {};
-  const mode =
-    result.mode ||
-    fallbackMode ||
-    (result.baseline || result.filtered ? "compare" : "preview");
-  const compared = mode === "compare";
-  const jev = result.jev || {};
-  const unavailable =
-    jev.status === "unavailable" ||
-    (mode === "preview" &&
-      jev.requests === null &&
-      jev.inputTokens === null &&
-      jev.costUsd === null);
-  const candidates = Array.isArray(admission.candidates)
-    ? admission.candidates
-    : sourceItems(state.scenario?.source);
-  const sourceWasKept =
-    candidates.length > 0 &&
-    candidates.every((item) => item.decision === "admit");
-  const contextUnavailable =
-    admission.status === "unavailable" ||
-    (admission.status === undefined && unavailable && sourceWasKept);
-  $("quality-note").textContent = compared
-    ? "Task checks and actual usage are shown below."
-    : "Task quality still needs a Claude comparison.";
-  $("results").hidden = false;
-  $("comparison").hidden = !compared;
-  $("result-mode").textContent = compared
-    ? "Paired Claude comparison"
-    : "JEV preview";
-  $("admission-caption").textContent =
-    admission.status === "disabled"
-      ? "Original context used"
-      : contextUnavailable
-        ? "Original source kept"
-        : compared
-          ? "Admission used in this comparison"
-          : "Live JEV decision";
-  $("admission-scope").textContent =
-    typeof admission.scope === "string" && admission.scope
-      ? admission.scope
-      : compared
-        ? "Selected source only. Complete Claude usage is shown below."
-        : "Source selection preview. Claude has not run.";
-  setMetric("metric-offered", admission.offeredTokens);
-  setMetric("metric-admitted", admission.admittedTokens);
-  setMetric("metric-recovered", admission.recoveredTokens);
-  renderStrip(admission);
-  renderSource(candidates, contextUnavailable);
-  $("source-note").textContent =
-    "Scores and confidence are model judgments, not correctness guarantees. These fixtures contain synthetic data.";
-  $("jev-model").textContent = jev.model || state.status?.model || "JEV";
-  $("jev-availability").hidden = !unavailable && jev.status !== "not-needed";
-  $("jev-availability").textContent = unavailable
-    ? "Unavailable · usage unknown"
-    : "No JEV call needed";
-  $("jev-cost-label").textContent = "estimated total JEV cost";
-  $("jev-requests").textContent = number(jev.requests);
-  $("jev-tokens").textContent = number(jev.inputTokens);
-  $("jev-latency").textContent = duration(jev.latencyMs);
-  $("jev-cost").textContent = money(jev.costUsd);
-  const verdict = result.verdict || {};
-  const passed = typeof verdict.passed === "boolean" ? verdict.passed : null;
-  $("verdict").className =
-    `verdict${passed === true ? " is-pass" : passed === false ? " is-fail" : unavailable ? " is-inconclusive" : ""}`;
-  $("verdict-symbol").textContent =
-    passed === true ? "✓" : passed === false ? "×" : "·";
-  $("verdict-title").textContent = compared
-    ? passed === true
-      ? "Fixture checks passed"
-      : passed === false
-        ? "A fixture check failed"
-        : "Comparison inconclusive"
-    : unavailable
-      ? "JEV preview unavailable"
-      : "Preview complete";
-  $("verdict-summary").textContent =
-    verdict.summary ||
-    (compared
-      ? "Inspect both answers and the usage below. Lower context size is useful only if the task still succeeds."
-      : "Inspect the admission decisions below. Run a Claude comparison to check whether the reduced context still answers the task.");
-  renderRouting(result.routing);
-  if (compared) {
-    const orderLabels = {
-      baseline: "Claude alone",
-      filtered: "Claude + Jevusher",
-    };
-    const order = Array.isArray(result.order) ? result.order : [];
-    $("comparison-order").textContent =
-      order.length === 2 &&
-      new Set(order).size === 2 &&
-      order.every((item) => ["baseline", "filtered"].includes(item))
-        ? order.map((item) => orderLabels[item]).join(" → ")
-        : "Unavailable";
-    $("filtered-source-label").textContent =
-      result.optimization === "routing" ? "Full source" : "Admitted source";
-    renderAnswer("baseline", result.baseline);
-    renderAnswer("filtered", result.filtered);
-  }
+  addDetail("Initial source tokens", number(result.admission?.offeredTokens));
+  addDetail(
+    "Initially admitted tokens",
+    number(result.admission?.admittedTokens),
+  );
+  addDetail(
+    "Recovered source tokens",
+    number(result.admission?.recoveredTokens),
+  );
+  if (result.routing)
+    addDetail(
+      "Model selection",
+      result.routing.trusted
+        ? "JEV’s confident choice used"
+        : "Baseline model retained",
+    );
+  addDetail(
+    "Run order",
+    Array.isArray(result.order)
+      ? result.order
+          .map((variant) => (variant === "baseline" ? "Without" : "With"))
+          .join(" → ")
+      : "Not recorded",
+  );
+  $("result-json").textContent = JSON.stringify(result, null, 2);
+  $("raw-result").hidden = false;
+  $("download-report").disabled = false;
 }
 
-function renderRouting(routing) {
-  $("routing-result").hidden = !routing;
-  if (!routing) return;
-  $("routing-baseline").textContent = modelName(routing.baselineModel);
-  $("routing-selected").textContent = modelName(routing.selectedModel);
-  $("routing-status").textContent =
-    routing.trusted === true
-      ? "JEV model choice used"
-      : "Baseline model retained";
-  $("routing-reason").textContent =
-    {
-      "confident-route": "JEV’s decision met the confidence threshold.",
-      "uncertain-route": "JEV was uncertain, so the baseline model was kept.",
-      "missing-api-key": "No JEV key was available. The baseline model was kept.",
-      "prompt-too-large": "This prompt exceeds the routing limit. The baseline model was kept.",
-      "routing-timeout": "JEV did not respond in time. The baseline model was kept.",
-      "provider-unavailable": "JEV was unavailable. The baseline model was kept.",
-    }[routing.reason] || "Inspect the paired task checks before judging the model choice.";
-  $("routing-confidence").textContent =
-    typeof routing.confidence === "number" &&
-    Number.isFinite(routing.confidence)
-      ? `${Math.round(routing.confidence * 100)}%`
-      : "Unavailable";
-  $("routing-cost").textContent = money(routing.costUsd);
-  $("routing-tier").textContent =
-    typeof routing.tier === "string" ? routing.tier : "Unavailable";
-  $("routing-requests").textContent = number(routing.requests);
-  $("routing-tokens").textContent = number(routing.inputTokens);
-  $("routing-latency").textContent = duration(routing.latencyMs);
-}
-
-$("key-toggle").addEventListener("click", () => toggleKeyPanel());
 $("refresh-status").addEventListener("click", () => {
   void refreshStatus();
 });
-$("scenario").addEventListener("change", (event) =>
-  selectScenario(event.target.value),
-);
-for (const id of ["baseline-model", "optimization"]) {
-  $(id).addEventListener("change", () => {
-    selectScenario($("scenario").value);
-    updateOptimizationHint();
-  });
-}
-$("source-toggle").addEventListener("click", () => {
-  const show = $("source-content").hidden;
-  $("source-content").hidden = !show;
-  $("source-toggle").setAttribute("aria-expanded", String(show));
-  $("source-toggle").textContent = show ? "Hide source ↑" : "Show source ↓";
-});
-$("run-preview").addEventListener("click", () => {
-  void startRun("preview");
-});
+for (const id of ["scenario", "baseline-model"])
+  $(id).addEventListener("change", () => selectScenario($("scenario").value));
 $("run-compare").addEventListener("click", () => {
-  void startRun("compare");
+  void startRun();
 });
 $("cancel-run").addEventListener("click", async () => {
   if (!state.run?.id) return;
+  const id = state.run.id;
   $("cancel-run").disabled = true;
   $("cancel-run").textContent = "Cancelling…";
   try {
-    await api(`/api/runs/${encodeURIComponent(state.run.id)}/cancel`, {
+    await api(`/api/runs/${encodeURIComponent(id)}/cancel`, {
       method: "POST",
       body: "{}",
     });
   } catch (error) {
+    if (state.run?.id !== id) return;
+    if (error.status === 409) {
+      void pollRun();
+      return;
+    }
     setError(error.message);
     $("cancel-run").disabled = false;
-    $("cancel-run").textContent = "Cancel test";
+    $("cancel-run").textContent = "Cancel";
   }
 });
 $("download-report").addEventListener("click", () => {
@@ -657,7 +531,7 @@ $("download-report").addEventListener("click", () => {
   );
   const link = document.createElement("a");
   link.href = url;
-  link.download = `jevusher-${state.scenario?.id || "test"}-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = `jev-usher-${state.scenario?.id || "test"}-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.append(link);
   link.click();
   link.remove();
@@ -671,7 +545,7 @@ $("clear-key").addEventListener("click", async () => {
     await api("/api/key", { method: "DELETE" });
     $("api-key").value = "";
     $("key-message").textContent =
-      "The session key was removed. An environment key, if configured, is still available.";
+      "Session key removed. An environment key, if configured, remains available.";
     await refreshStatus();
   } catch (error) {
     $("key-message").textContent = error.message;
@@ -687,19 +561,19 @@ $("key-form").addEventListener("submit", async (event) => {
   if (!key) return;
   state.keyBusy = true;
   updateControls();
-  $("key-message").textContent = "Setting the key for this local session…";
+  $("key-message").textContent = "Setting your session key…";
   try {
     await api("/api/key", { method: "POST", body: JSON.stringify({ key }) });
-    $("api-key").value = "";
     $("key-message").textContent =
-      "Key configured. Run a preview to verify it with JEV.";
+      "Key configured. A comparison will verify it with JEV.";
     await refreshStatus();
-    toggleKeyPanel(false);
+    if (state.status?.claude?.authenticated) $("connection-setup").open = false;
   } catch (error) {
     $("key-message").textContent = error.message;
   } finally {
+    $("api-key").value = "";
     state.keyBusy = false;
     updateControls();
   }
 });
-void refreshStatus(true);
+void refreshStatus();

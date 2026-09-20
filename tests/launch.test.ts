@@ -62,11 +62,11 @@ async function fixture(provider?: Provider) {
   return { root, cwd, home, packageRoot, dependencies, output, spawned, settings, signals };
 }
 
-function hooks() {
+function hooks(name = "jev-usher") {
   return { hooks: {
-    UserPromptSubmit: [{ hooks: [{ type: "command", command: "jevusher hook user-prompt-submit" }] }],
-    PreToolUse: [{ matcher: "^(Edit|Write)$", hooks: [{ type: "command", command: "jevusher hook pre-tool-use" }] }],
-    PostToolUse: [{ matcher: "^(Read|Bash|Grep|Glob|WebFetch|WebSearch|mcp__.*)$", hooks: [{ type: "command", command: "jevusher hook post-tool-use" }] }],
+    UserPromptSubmit: [{ hooks: [{ type: "command", command: `${name} hook user-prompt-submit` }] }],
+    PreToolUse: [{ matcher: "^(Edit|Write)$", hooks: [{ type: "command", command: `${name} hook pre-tool-use` }] }],
+    PostToolUse: [{ matcher: "^(Read|Bash|Grep|Glob|WebFetch|WebSearch|mcp__.*)$", hooks: [{ type: "command", command: `${name} hook post-tool-use` }] }],
   } };
 }
 
@@ -278,12 +278,12 @@ describe("launchClaude", () => {
     expect(f.spawned[0]!.args.filter(arg => arg.startsWith("--plugin-dir"))).toEqual([`--plugin-dir=${alias}`]);
   });
 
-  it("uses a complete existing hook installation without writing its settings", async () => {
-    const f = await fixture(); const path = await f.settings(hooks()); const before = await readFile(path, "utf8");
+  it.each(["jev-usher", "jevusher"])("uses a complete existing %s hook installation without writing its settings", async name => {
+    const f = await fixture(); const path = await f.settings(hooks(name)); const before = await readFile(path, "utf8");
     await launchClaude(["Task"], f.dependencies);
     expect(f.spawned[0]!.args).not.toContain("--plugin-dir");
     expect(await readFile(path, "utf8")).toBe(before);
-    expect(f.output.join("")).toContain("existing Jevusher installation");
+    expect(f.output.join("")).toContain("existing jev-usher installation");
   });
 
   it.each(["missing-guard", "narrow-native-matcher"])("refuses incompatible existing hooks: %s", async kind => {
@@ -291,7 +291,7 @@ describe("launchClaude", () => {
     if (kind === "missing-guard") delete (value.hooks as Partial<typeof value.hooks>).PreToolUse;
     else value.hooks.PostToolUse[0]!.matcher = "^(Read|mcp__.*)$";
     await f.settings(value);
-    await expect(launchClaude(["Task"], f.dependencies)).rejects.toThrow(/Re-run jevusher install/);
+    await expect(launchClaude(["Task"], f.dependencies)).rejects.toThrow(/Re-run jev-usher install/);
     expect(requests).toHaveLength(0); expect(f.spawned).toHaveLength(0);
   });
 
@@ -307,8 +307,8 @@ describe("launchClaude", () => {
     expect(f.spawned[0]!.args).not.toContain("--plugin-dir");
   });
 
-  it("preserves an installed plugin and explains that its installed version must be updated", async () => {
-    const f = await fixture(); await f.settings({ enabledPlugins: { "jevusher@example": true } });
+  it.each(["jev-usher@example", "jevusher@example"])("preserves installed plugin %s and explains that its version must be updated", async name => {
+    const f = await fixture(); await f.settings({ enabledPlugins: { [name]: true } });
     await launchClaude(["Task"], f.dependencies);
     expect(f.spawned[0]!.args).not.toContain("--plugin-dir");
     expect(f.output.join("")).toContain("Update it after upgrades");

@@ -1,5 +1,5 @@
 name: Feature request
-description: Describe a concrete task that Jevusher should support.
+description: Describe a concrete task that jev-usher should support.
 body:
   - type: textarea
     id: task

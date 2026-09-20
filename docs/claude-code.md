@@ -10,10 +10,10 @@ older clients may ignore replacement output. Rerun comparisons after upgrading.
 ## Start with automatic routing
 
 ```bash
-node /absolute/path/to/jevusher/bin/jevusher.mjs claude "Investigate the retry failure"
-node /absolute/path/to/jevusher/bin/jevusher.mjs claude --model sonnet "Explain this module"
-node /absolute/path/to/jevusher/bin/jevusher.mjs claude --no-route "Continue the investigation"
-node /absolute/path/to/jevusher/bin/jevusher.mjs claude "Check the next failure" -- --continue
+node /absolute/path/to/jev-usher/bin/jev-usher.mjs claude "Investigate the retry failure"
+node /absolute/path/to/jev-usher/bin/jev-usher.mjs claude --model sonnet "Explain this module"
+node /absolute/path/to/jev-usher/bin/jev-usher.mjs claude --no-route "Continue the investigation"
+node /absolute/path/to/jev-usher/bin/jev-usher.mjs claude "Check the next failure" -- --continue
 ```
 
 The launcher sends the initial prompt to JEV and selects a Claude model through
@@ -29,7 +29,7 @@ are forwarded to Claude. Authentication, permissions, and settings remain owned
 by the official CLI. The launcher enables filtering for its child process unless
 `JEVUSHER_FILTER=0` is set; it does not write global settings.
 
-The launcher checks for existing Jevusher hooks before adding its local plugin.
+The launcher checks for existing jev-usher hooks before adding its local plugin.
 Older settings installations without the recovery guard or current tool matchers
 must be updated with `install`, or removed with `uninstall`. When using an
 installed plugin, keep that plugin updated as well as the launcher checkout.
@@ -39,22 +39,26 @@ installed plugin, keep that plugin updated as well as the launcher checkout.
 Build first with `npm ci && npm run check`. Load the checkout with:
 
 ```bash
-claude --plugin-dir /absolute/path/to/jevusher
+claude --plugin-dir /absolute/path/to/jev-usher
 ```
 
 The plugin manifest is `.claude-plugin/plugin.json`; hooks are in
 `hooks/hooks.json`. The runtime is built to `dist/`. A raw Git checkout without a
 build is not an installable runtime. For a packaged copy, `dist/` is included.
 
-Alternatively run `node /absolute/path/to/jevusher/bin/jevusher.mjs install` from
+Alternatively run `node /absolute/path/to/jev-usher/bin/jev-usher.mjs install` from
 the target project. Add `--global` for user settings. `uninstall` with the same
-scope removes only Jevusher handlers. Do not enable both the plugin and settings
+scope removes only jev-usher handlers. Do not enable both the plugin and settings
 hooks. Settings installation supports macOS/Linux and writes quoted absolute
 paths, so reinstall after moving the executable.
 
 Installation preserves unrelated settings and hooks, backs up an existing file,
 rejects malformed settings, and writes atomically. Backups use the suffix
 `.jevusher-backup-<id>` beside the settings file. No credential is written there.
+
+The `jevusher` executable remains an alias for existing hook installations.
+Environment variables still use `JEVUSHER_*`, and saved state stays under
+`~/.claude/jevusher`; these names preserve existing recovery references.
 
 ## Configure explicit inputs
 
@@ -91,7 +95,7 @@ loading behavior; adding a capability hint does not replace either.
 
 Claude's MCP tool search defers tool definitions by default, subject to provider
 and configuration support. Prompt caching also changes the cost of repeated
-context. A Jevusher comparison must preserve those native features in the
+context. A jev-usher comparison must preserve those native features in the
 baseline; a full-catalog replay is not equivalent to a normal Claude session.
 [MCP tool search](https://code.claude.com/docs/en/mcp#scale-with-mcp-tool-search) ·
 [Cost accounting](https://code.claude.com/docs/en/costs)
@@ -120,7 +124,7 @@ enable it in the environment inherited by Claude:
 
 ```bash
 export JEVUSHER_FILTER=1
-claude --plugin-dir /absolute/path/to/jevusher
+claude --plugin-dir /absolute/path/to/jev-usher
 ```
 
 The adapter filters supported text `Read` results, including documents, source
@@ -183,7 +187,7 @@ complete summaries. Recovery files bypass filtering. You can read the path
 yourself to inspect the complete original. If saving fails, the original result
 passes through unchanged.
 
-After a filtered Read, Jevusher records a recovery requirement for that source.
+After a filtered Read, jev-usher records a recovery requirement for that source.
 Native `Edit` and `Write` calls are denied until Claude reads the complete,
 byte-identical archived original from its beginning. Partial archive reads do
 not clear the requirement. Repeated source reads pass through while a recovery
@@ -230,7 +234,7 @@ call, hide its output, or enforce a permission decision.
 Current Claude Code documents `PostToolUse.hookSpecificOutput.updatedToolOutput`
 for replacing a result before the next model reads it. Replacements must match
 the tool's output shape; invalid built-in tool replacements are ignored. The
-older `updatedMCPToolOutput` field is MCP-specific. Jevusher emits replacements
+older `updatedMCPToolOutput` field is MCP-specific. jev-usher emits replacements
 only for the narrow formats described above. The tool has already executed, and
 telemetry may already contain its original output.
 
@@ -240,7 +244,7 @@ Claude finishes responding; blocking it requests more work, not early terminatio
 The project makes no compatibility claim for undocumented function-hook APIs.
 [Authoritative hooks contract](https://code.claude.com/docs/en/hooks)
 
-Jevusher leaves native compaction, prompt caching, skill loading, MCP tool search,
+jev-usher leaves native compaction, prompt caching, skill loading, MCP tool search,
 and effort settings under Claude's control. It does not rewrite the system prompt,
 route subagents, or change the main model between turns. The library's compaction
 and capability decisions require an application that owns those inputs.

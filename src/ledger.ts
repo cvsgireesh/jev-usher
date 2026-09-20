@@ -4,7 +4,7 @@ import type { Usage } from "./types.js";
 export interface Prices {
   /** Default 0.042 — jev-1.13 input. Output is free. */
   jev?: number;
-  /** The model Jevusher is protecting. Default 15 (Opus-class input). */
+  /** The model jev-usher is protecting. Default 15 (Opus-class input). */
   target?: number;
 }
 

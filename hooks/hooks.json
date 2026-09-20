@@ -3,7 +3,7 @@
     "UserPromptSubmit": [{
       "hooks": [{
         "type": "command",
-        "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/jevusher.mjs\" hook user-prompt-submit",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/jev-usher.mjs\" hook user-prompt-submit",
         "timeout": 20
       }]
     }],
@@ -11,7 +11,7 @@
       "matcher": "^(Edit|Write)$",
       "hooks": [{
         "type": "command",
-        "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/jevusher.mjs\" hook pre-tool-use",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/jev-usher.mjs\" hook pre-tool-use",
         "timeout": 20
       }]
     }],
@@ -19,7 +19,7 @@
       "matcher": "^(Read|Bash|Grep|Glob|WebFetch|WebSearch|mcp__.*)$",
       "hooks": [{
         "type": "command",
-        "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/jevusher.mjs\" hook post-tool-use",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/jev-usher.mjs\" hook post-tool-use",
         "timeout": 20
       }]
     }]

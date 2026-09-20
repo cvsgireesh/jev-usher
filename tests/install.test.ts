@@ -12,7 +12,7 @@ async function settings(content?: string) {
   return { dir, path };
 }
 afterEach(async () => { await Promise.all(dirs.splice(0).map(d => rm(d, { recursive: true, force: true }))); });
-const command = "'/node' '/app/bin/jevusher.mjs'";
+const command = "'/node' '/app/bin/jev-usher.mjs'";
 
 describe("settings installation", () => {
   it.each(['{broken', '[]', '{"hooks":[]}', '{"hooks":{"UserPromptSubmit":{}}}'])("preserves invalid settings byte for byte", async content => {
@@ -40,6 +40,33 @@ describe("settings installation", () => {
     const updated = await readFile(path, "utf8");
     expect(updated).not.toContain("npx --yes");
     expect(updated).toContain("echo jevusher is installed");
+  });
+  it("upgrades a mixed-name installation to one set of hooks and preserves unrelated handlers", async () => {
+    const untouched = { type: "command", command: "check-project-policy" };
+    const { path } = await settings(JSON.stringify({ hooks: {
+      PostToolUse: [{ matcher: "Read", hooks: [
+        { type: "command", command: "'/old/bin/jevusher.mjs' hook post-tool-use" },
+        { type: "command", command: "npx --yes jev-usher hook post-tool-use" },
+        untouched,
+      ] }],
+      Stop: [{ hooks: [{ type: "command", command: "jevusher hook stop" }] }],
+    } }));
+    await configureHooks(path, command);
+    const installed = JSON.parse(await readFile(path, "utf8"));
+    expect(installed.hooks.PostToolUse).toHaveLength(2);
+    expect(installed.hooks.PostToolUse[0].hooks).toEqual([untouched]);
+    expect(installed.hooks.PostToolUse[1].hooks).toEqual([{ type: "command", command: `${command} hook post-tool-use`, timeout: 20 }]);
+    expect(installed.hooks.Stop).toBeUndefined();
+    await configureHooks(path, command, true);
+    expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ hooks: { PostToolUse: [{ matcher: "Read", hooks: [untouched] }] } });
+  });
+  it("respects an earlier release's settings lock without changing its files", async () => {
+    const original = '{"permissions":{}}';
+    const { path } = await settings(original);
+    await writeFile(`${path}.jevusher.lock`, "held by the previous release");
+    await expect(configureHooks(path, command)).rejects.toMatchObject({ code: "EEXIST" });
+    expect(await readFile(path, "utf8")).toBe(original);
+    expect(await readFile(`${path}.jevusher.lock`, "utf8")).toBe("held by the previous release");
   });
   it("quotes paths containing spaces and apostrophes", () => {
     expect(shellQuote("/a'b/my folder")).toBe("'/a'\\''b/my folder'");

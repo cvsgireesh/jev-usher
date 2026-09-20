@@ -1,8 +1,8 @@
 export { DecisionCache } from "./cache.js";
 export type { DecisionCacheOptions } from "./cache.js";
 
-export { Jevusher } from "./pipeline.js";
-export type { JevusherConfig, BeforeTurnOptions, BeforeTurnResult } from "./pipeline.js";
+export { Jevusher as JevUsher, Jevusher } from "./pipeline.js";
+export type { JevusherConfig as JevUsherConfig, JevusherConfig, BeforeTurnOptions, BeforeTurnResult } from "./pipeline.js";
 
 export { Usher, DEFAULT_LEVELS } from "./usher.js";
 export type { AdmitOptions, UsherConfig } from "./usher.js";
@@ -32,5 +32,5 @@ export { JevClient, JevError, DEFAULT_BASE_URL, DEFAULT_MODEL } from "./client.j
 export type { JevClientConfig, Provider } from "./client.js";
 
 export { estimateTokens, candidateTokens, totalTokens, chunk } from "./budget.js";
-export { JevusherError } from "./core.js";
+export { JevusherError as JevUsherError, JevusherError } from "./core.js";
 export type * from "./types.js";

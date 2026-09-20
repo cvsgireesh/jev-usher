@@ -2,7 +2,7 @@
 import { writeFile } from "node:fs/promises";
 import { resolve, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { JevClient, Jevusher } from "../dist/index.js";
+import { JevClient, JevUsher } from "../dist/index.js";
 
 const outIndex = process.argv.indexOf("--out");
 if (!process.argv.includes("--live") || outIndex < 0 || !process.argv[outIndex + 1]) {
@@ -28,7 +28,7 @@ const provider = { model: client.model, async evaluate(request) {
     throw error;
   }
 } };
-const pipeline = new Jevusher({ provider });
+const pipeline = new JevUsher({ provider });
 const cases = [];
 async function check(name, run, predicate) {
   const before = calls.length;

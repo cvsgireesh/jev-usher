@@ -8,7 +8,7 @@ import { DEFAULT_MODEL, JevClient, type Provider } from "./client.js";
 import { Router, type Tier } from "./route.js";
 import { record } from "./validation.js";
 
-const USAGE = 'Usage: jevusher claude [--no-route] [--model MODEL] "prompt" [-- Claude options]';
+const USAGE = 'Usage: jev-usher claude [--no-route] [--model MODEL] "prompt" [-- Claude options]';
 const TIERS: Tier[] = [
   { id: "trivial", description: "A simple standalone question, brief reformatting, or a mechanical text conversion. No code changes, repository knowledge, investigation, important judgment, or hidden dependencies are required." },
   { id: "mechanical", description: "A well-specified, limited coding or operational task with clear requirements and a readily verifiable result. No security-sensitive change, unknown root cause, architecture decision, broad refactor, or important ambiguity." },
@@ -132,27 +132,27 @@ export async function launchClaude(argv: string[], dependencies: LaunchDependenc
   const args = [...parsed.claudeArgs];
 
   await access(join(packageRoot, "dist", "hook.js")).catch(() => {
-    throw new Error("Build Jevusher before launching Claude: npm run build.");
+    throw new Error("Build jev-usher before launching Claude: npm run build.");
   });
   const existing = await alreadyConfigured(args, cwd, env, packageRoot);
   if (!existing) args.push("--plugin-dir", packageRoot);
-  else if (existing !== "local-plugin") write("[jevusher] Using your existing Jevusher installation. Update it after upgrades to use the current hooks.\n");
+  else if (existing !== "local-plugin") write("[jev-usher] Using your existing jev-usher installation. Update it after upgrades to use the current hooks.\n");
 
   const continuing = args.some(arg => ["--resume", "-r", "--continue", "-c", "--fork-session"].includes(arg) || arg.startsWith("--resume="));
   let model = parsed.explicitModel;
   if (model) {
-    write(`[jevusher] Using your explicit model: ${model}.\n`);
+    write(`[jev-usher] Using your explicit model: ${model}.\n`);
   } else if (parsed.noRoute || continuing || env.ANTHROPIC_MODEL) {
-    write(`[jevusher] Keeping Claude's model selection${continuing ? " for this resumed conversation" : ""}.\n`);
+    write(`[jev-usher] Keeping Claude's model selection${continuing ? " for this resumed conversation" : ""}.\n`);
   } else {
     if ((dependencies.provider || env.JEV_API_KEY || env.TYPESAFE_API_KEY) && Buffer.byteLength(parsed.prompt, "utf8") <= 20_000) {
-      write("[jevusher] Sending the launch prompt to TypeSafe JEV for model selection.\n");
+      write("[jev-usher] Sending the launch prompt to TypeSafe JEV for model selection.\n");
     }
     const result = await selectModel(parsed.prompt, { apiKey: env.JEV_API_KEY ?? env.TYPESAFE_API_KEY ?? "", provider: dependencies.provider });
     model = result.trusted ? result.selectedModel : undefined;
     write(result.trusted
-      ? `[jevusher] Launch model: ${model} (JEV confidence ${result.confidence!.toFixed(2)}). This choice applies to this launch only.\n`
-      : "[jevusher] Routing was uncertain or unavailable; keeping Claude's configured model.\n");
+      ? `[jev-usher] Launch model: ${model} (JEV confidence ${result.confidence!.toFixed(2)}). This choice applies to this launch only.\n`
+      : "[jev-usher] Routing was uncertain or unavailable; keeping Claude's configured model.\n");
   }
   if (model && !parsed.modelAlreadyForwarded) args.push("--model", model);
   env.JEVUSHER_FILTER ??= "1";
@@ -162,7 +162,7 @@ export async function launchClaude(argv: string[], dependencies: LaunchDependenc
     try {
       child = (dependencies.spawn ?? spawn)("claude", args, { cwd, env, stdio: "inherit", shell: false });
     } catch {
-      write("[jevusher] Could not start Claude. Ensure the official claude executable is on PATH.\n");
+      write("[jev-usher] Could not start Claude. Ensure the official claude executable is on PATH.\n");
       resolveExit(127);
       return;
     }
@@ -195,7 +195,7 @@ export async function launchClaude(argv: string[], dependencies: LaunchDependenc
       if (finished) return;
       finished = true;
       cleanup();
-      write("[jevusher] Could not start Claude. Ensure the official claude executable is on PATH.\n");
+      write("[jev-usher] Could not start Claude. Ensure the official claude executable is on PATH.\n");
       resolveExit(127);
     });
     child.once("close", (code: number | null, signal: NodeJS.Signals | null) => {
@@ -283,7 +283,7 @@ async function alreadyConfigured(args: string[], cwd: string, env: NodeJS.Proces
   const events = new Set<string>();
   for (const value of settings) {
     if (!record(value)) continue;
-    if (record(value.enabledPlugins) && Object.entries(value.enabledPlugins).some(([name, enabled]) => /^jevusher(?:@|$)/.test(name) && enabled === true)) return "installed-plugin";
+    if (record(value.enabledPlugins) && Object.entries(value.enabledPlugins).some(([name, enabled]) => /^jev-?usher(?:@|$)/.test(name) && enabled === true)) return "installed-plugin";
     if (!record(value.hooks)) continue;
     for (const [event, argument, requiredTools] of [
       ["UserPromptSubmit", "user-prompt-submit", []],
@@ -295,7 +295,7 @@ async function alreadyConfigured(args: string[], cwd: string, env: NodeJS.Proces
       for (const group of groups) {
         if (!record(group) || !Array.isArray(group.hooks)) continue;
         if (group.hooks.some(handler => record(handler) && handler.type === "command" && typeof handler.command === "string" &&
-          new RegExp(`\\bjevusher(?:\\.mjs)?['\"]? hook ${argument}$`).test(handler.command))) {
+          new RegExp(`\\bjev-?usher(?:\\.mjs)?['\"]? hook ${argument}$`).test(handler.command))) {
           let coversTools = group.matcher === undefined || group.matcher === "";
           if (typeof group.matcher === "string") {
             try { const matcher = new RegExp(group.matcher); coversTools = requiredTools.every(tool => matcher.test(tool)); }
@@ -308,7 +308,7 @@ async function alreadyConfigured(args: string[], cwd: string, env: NodeJS.Proces
     }
   }
   if (events.size && (events.size !== 3 || events.has("incomplete-matcher"))) {
-    throw new Error("Older or partial Jevusher settings hooks found. Re-run jevusher install, or uninstall those hooks before using the launcher, to avoid duplicate hooks.");
+    throw new Error("Older or partial jev-usher settings hooks found. Re-run jev-usher install, or uninstall those hooks before using the launcher, to avoid duplicate hooks.");
   }
   return events.size === 3 ? "settings" : false;
 }

@@ -1,6 +1,6 @@
 # Architecture
 
-Jevusher separates semantic judgments from deterministic actions. The TypeSafe
+jev-usher separates semantic judgments from deterministic actions. The TypeSafe
 provider evaluates text; the lenses apply thresholds and budgets; the caller
 controls the downstream model, tool execution, and transcript.
 

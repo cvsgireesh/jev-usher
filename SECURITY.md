@@ -1,10 +1,10 @@
 # Security
 
-Jevusher is preview software. Screening is a probabilistic signal, not an
+jev-usher is preview software. Screening is a probabilistic signal, not an
 execution sandbox or permission system. Do not grant a tool more authority
 because content passed a JEV check. Preserve your agent's approval controls.
 
-For sensitive reports, [report a vulnerability privately](https://github.com/cvsgireesh/jevusher/security/advisories/new).
+For sensitive reports, [report a vulnerability privately](https://github.com/cvsgireesh/jev-usher/security/advisories/new).
 Do not include credentials or private project data in a report. Use public issues
 for ordinary bugs that do not expose a vulnerability.
 

@@ -22,50 +22,50 @@ const surround = (content: string) => unrelated('Office inventory', 7) + content
 const fact = (field: string, expected: FactCheck['expected'], label: string): FactCheck => ({ field, expected, label });
 const scenarios: LabScenario[] = [
   {
-    id: 'release', title: 'Find the release rule',
-    description: 'Locate an exact release condition in a long operations document.',
+    id: 'release', title: 'Find an important rule',
+    description: 'Find when to undo a software update, including the exception and exact command.',
     prompt: 'Read fixture.md. Extract the atlas-api rollback rule: rollback_command (exact command), metric (exact metric name), comparison (the document\'s comparison verb), threshold_percent (number), consecutive_minutes (number), and single_spike_triggers (boolean).',
     source: surround('## atlas-api release operations\nRollback command: deployctl rollback atlas-api --revision stable\nRoll back if the HTTP 5xx error rate exceeds 2.5% for 10 consecutive minutes.\nA single transient spike does not trigger rollback.\n'),
     checks: [fact('rollback_command', 'deployctl rollback atlas-api --revision stable', 'Exact rollback command'), fact('metric', 'HTTP 5xx error rate', 'Correct error metric'), fact('comparison', 'exceeds', 'Threshold direction'), fact('threshold_percent', 2.5, 'Threshold preserved'), fact('consecutive_minutes', 10, 'Consecutive duration'), fact('single_spike_triggers', false, 'Transient spike exception')],
   },
   {
-    id: 'incident', title: 'Diagnose the failed job',
-    description: 'Keep the failure, its cause, and its remediation together.',
+    id: 'incident', title: 'Understand why a task failed',
+    description: 'Find the cause of a failed task and the required fix.',
     prompt: 'Read fixture.md. For QX-71 return error_code (exact literal), configuration (exact KEY=value change), renewal_required (boolean), retries_repair_certificate (boolean), and disable_tls_verification (boolean).',
     source: surround('## Incident QX-71\n2026-09-10T08:41Z job QX-71 failed with TLS_CERT_EXPIRED.\nThe server certificate expired at 08:00Z; retries cannot repair a certificate.\nSet TLS_CERT_PATH=/etc/atlas/certs/current.pem after renewing the certificate.\nDo not disable TLS verification.\n'),
     checks: [fact('error_code', 'TLS_CERT_EXPIRED', 'Correct error code'), fact('configuration', 'TLS_CERT_PATH=/etc/atlas/certs/current.pem', 'Exact configuration'), fact('renewal_required', true, 'Certificate renewal required'), fact('retries_repair_certificate', false, 'No ineffective retry advice'), fact('disable_tls_verification', false, 'TLS safety constraint')],
   },
   {
-    id: 'constraints', title: 'Preserve distant constraints',
-    description: 'Useful facts sit at both ends; the filter must keep the material between them.',
+    id: 'constraints', title: 'Find details across a long document',
+    description: 'Find a support contact and a time limit written far apart.',
     prompt: 'Read fixture.md. Return support_contact (exact email) and maximum_retention_days (number) for audit exports.',
     source: '## Audit export support\nFor audit export support contact audit-help@example.invalid.\n\n' + unrelated('Office inventory', 14) + '## Audit export retention\nAudit exports must be deleted after 17 days.\n',
     checks: [fact('support_contact', 'audit-help@example.invalid', 'Support contact preserved'), fact('maximum_retention_days', 17, 'Retention preserved')],
   },
   {
-    id: 'correction', title: 'Respect a correction',
-    description: 'An older limit and its replacement both matter to the answer.',
+    id: 'correction', title: 'Check an updated rule',
+    description: 'Tell the current limit apart from the older limit it replaced.',
     prompt: 'Read fixture.md. Return current_requests_per_second and superseded_requests_per_second as numbers. Associate each value with the correct policy version.',
     source: surround('## API burst limit: original policy\nThe original API burst limit was 40 requests per second.\n\n## API burst limit: correction effective September 15\nThe current API burst limit is 75 requests per second. This replaces the earlier 40 requests per second.\n'),
     checks: [fact('current_requests_per_second', 75, 'Current limit'), fact('superseded_requests_per_second', 40, 'Superseded limit')],
   },
   {
-    id: 'unicode', title: 'Keep exact Unicode text',
-    description: 'Preserve a literal label and identifier without rewriting them.',
+    id: 'unicode', title: 'Copy names exactly',
+    description: 'Keep accents and symbols unchanged when copying two names.',
     prompt: 'Read fixture.md. Return display_label and deployment_identifier as exact strings, preserving accents and symbols without translation or normalization.',
     source: surround('## Display configuration\nApproved display label: Café → 東京\nDeployment identifier: zürich-β-2049\nThese literals must be copied exactly; do not translate or normalize them.\n'),
     checks: [fact('display_label', 'Café → 東京', 'Display label unchanged'), fact('deployment_identifier', 'zürich-β-2049', 'Identifier unchanged')],
   },
   {
-    id: 'small', title: 'Leave short output alone',
-    description: 'A short useful document should pass through without a JEV request.',
+    id: 'small', title: 'Read a short note',
+    description: 'Find three settings in a brief note that needs no shortening.',
     prompt: 'Read fixture.md. Return port as a number, health_path as an exact string, and use_production_endpoint as a boolean.',
     source: '## Local probe\nUse port 4318 and path /healthz.\nDo not use the production endpoint.\n',
     checks: [fact('port', 4318, 'Port preserved'), fact('health_path', '/healthz', 'Health path preserved'), fact('use_production_endpoint', false, 'Local endpoint constraint')],
   },
   {
-    id: 'job-log', title: 'Trace the terminal failure',
-    description: 'Distinguish a recovered transient error from the failure that stopped the job.',
+    id: 'job-log', title: 'Find what stopped a task',
+    description: 'Separate a temporary problem from the final failure and find the required next step.',
     prompt: 'Read the complete fixture.md job log. For job PX-42 return transient_error, terminal_error, failed_step, and required_action as exact documented strings, and retry_allowed as a boolean.',
     source: Array.from({ length: 40 }, (_, i) => `2026-09-10T08:00:${String(i).padStart(2, '0')}Z job AUX-${i} INFO cache-cleanup completed; removed temporary build cache.\n`).join('') +
       '\n2026-09-10T08:41:00Z job PX-42 WARN step=download transient_error=HTTP_429; retry scheduled.\n' +
@@ -76,8 +76,8 @@ const scenarios: LabScenario[] = [
     checks: [fact('transient_error', 'HTTP_429', 'Recovered transient error'), fact('terminal_error', 'SHA256_MISMATCH', 'Actual terminal failure'), fact('failed_step', 'verify', 'Correct failed step'), fact('required_action', 'quarantine artifact', 'Required remediation'), fact('retry_allowed', false, 'Retry prohibition')],
   },
   {
-    id: 'complete-review', title: 'Review the complete policy',
-    description: 'Every section contains a required policy rule or exception; all must survive.',
+    id: 'complete-review', title: 'Review all the rules',
+    description: 'Read a complete policy and keep every required rule and exception.',
     prompt: 'Read and review the ENTIRE fixture.md policy, including every section and exception. Return support_contact (email), standard_retention_days and incident_retention_days (numbers), public_export_allowed and approval_required (booleans), approval_role (exact role), and deletion_evidence (exact artifact name). Do not narrow the review to a single section.',
     source: [
       ['Support', 'support_contact=audit-help@example.invalid', 'Questions about audit exports must reach this support contact. Owners must be identifiable before a request can proceed.'],
@@ -90,8 +90,8 @@ const scenarios: LabScenario[] = [
     checks: [fact('support_contact', 'audit-help@example.invalid', 'Support owner preserved'), fact('standard_retention_days', 17, 'Standard retention'), fact('incident_retention_days', 31, 'Incident exception'), fact('public_export_allowed', false, 'Public distribution restriction'), fact('approval_required', true, 'Approval requirement'), fact('approval_role', 'security owner', 'Approval authority'), fact('deletion_evidence', 'deletion-receipt.json', 'Deletion evidence')],
   },
   {
-    id: 'source-code', title: 'Read a TypeScript configuration', tool: 'Read', filename: 'fixture.ts',
-    description: 'Read actual source code and preserve the values and exception in an exported policy.',
+    id: 'source-code', title: 'Check how code behaves', tool: 'Read', filename: 'fixture.ts',
+    description: 'Find retry settings and check what the code does at its retry limit.',
     prompt: 'Use Read to read all of fixture.ts. Extract the deploymentPolicy values max_retries (number), retry_delay_ms (number), and allow_tls_bypass (boolean). Also return retry_at_limit (boolean): whether shouldRetry(3) returns true. Inspect the actual implementation rather than guessing from names.',
     source: Array.from({ length: 45 }, (_, i) => `export const officeSupply${i} = { room: ${100 + i}, label: "paper inventory", quantity: ${i + 10}, department: "facilities" };\n`).join('') +
       '\nexport const deploymentPolicy = Object.freeze({ maxRetries: 3, retryDelayMs: 250, allowTlsBypass: false });\n' +
@@ -100,8 +100,8 @@ const scenarios: LabScenario[] = [
     checks: [fact('max_retries', 3, 'Retry count'), fact('retry_delay_ms', 250, 'Retry delay'), fact('allow_tls_bypass', false, 'TLS constraint'), fact('retry_at_limit', false, 'Boundary condition')],
   },
   {
-    id: 'bash-output', title: 'Select useful terminal output', tool: 'Bash', filename: 'fixture.log',
-    description: 'Run a fixed read-only cat command and keep the requested configuration from its output.',
+    id: 'bash-output', title: 'Find details in an activity log', tool: 'Bash', filename: 'fixture.log',
+    description: 'Find service settings in a long log of unrelated activity.',
     prompt: 'Use Bash to run exactly cat fixture.log. From the complete output, return atlas_probe_port (number), atlas_probe_path (exact string), and atlas_probe_method (exact string). This task must use the Bash output, not a direct Read of the log.',
     source: Array.from({ length: 45 }, (_, i) => `INFO housekeeping warehouse=${i + 1} inventory="paper, chairs, pens" count=${i + 40}; routine facilities inventory completed.\n`).join('') +
       '\nINFO atlas local probe configuration: atlas_probe_port=4318 atlas_probe_path=/healthz atlas_probe_method=GET\n\n' +
@@ -109,8 +109,8 @@ const scenarios: LabScenario[] = [
     checks: [fact('atlas_probe_port', 4318, 'Probe port'), fact('atlas_probe_path', '/healthz', 'Probe path'), fact('atlas_probe_method', 'GET', 'Probe method')],
   },
   {
-    id: 'grep-output', title: 'Inspect native search results', tool: 'Grep', filename: 'fixture-search.log',
-    description: 'Search a synthetic log with the native Grep tool and preserve the requested service facts.',
+    id: 'grep-output', title: 'Find a detail in search results', tool: 'Grep', filename: 'fixture-search.log',
+    description: 'Find the requested database details among many unrelated search matches.',
     prompt: 'Use the Grep tool with pattern RECORD, path fixture-search.log, output_mode content, line numbers enabled (-n=true), and head_limit=0. Return atlas_pool_size (number), atlas_region (exact string), and atlas_read_only (boolean) from the atlas database record. Use the Grep results, not a direct Read of the log.',
     source: Array.from({ length: 45 }, (_, i) => `RECORD facilities office=${i + 1} supplies="paper, chairs, pens" count=${i + 40}; routine facilities inventory completed.`).join('\n') +
       '\nRECORD atlas database: atlas_pool_size=12 atlas_region=us-central atlas_read_only=true\n' +
@@ -118,8 +118,8 @@ const scenarios: LabScenario[] = [
     checks: [fact('atlas_pool_size', 12, 'Connection pool size'), fact('atlas_region', 'us-central', 'Database region'), fact('atlas_read_only', true, 'Read-only constraint')],
   },
   {
-    id: 'glob-output', title: 'Find a source file by name', tool: 'Glob',
-    description: 'Use a real native Glob result with exact synthetic paths. No source file contents are needed.',
+    id: 'glob-output', title: 'Find the right file', tool: 'Glob',
+    description: 'Choose the correct policy file from a long list of filenames.',
     prompt: 'Use Glob with pattern fixtures/**/*.ts. Find the atlas audit export retention policy module and return policy_path as the exact relative path beginning fixtures/. Do not read any source files.',
     source: [
       ...Array.from({ length: 45 }, (_, i) => `fixtures/facilities/office_inventory_room_${String(i + 1).padStart(3, '0')}_paper_chairs_stationery_count_report.ts`),
@@ -129,8 +129,8 @@ const scenarios: LabScenario[] = [
     checks: [fact('policy_path', 'fixtures/services/atlas-audit-export-retention-policy.ts', 'Exact source path')],
   },
   {
-    id: 'inline-knowledge', title: 'Route a simple question', tool: 'none',
-    description: 'A short general-knowledge question needs no tools or source filtering. Test model routing alone.',
+    id: 'inline-knowledge', title: 'Answer a simple question', tool: 'none',
+    description: 'Answer a general-knowledge question without reading files or using tools.',
     prompt: 'Without using any tools, return the capital of France in the capital field as its English name.',
     source: '',
     checks: [fact('capital', 'Paris', 'Correct capital')],

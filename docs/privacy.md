@@ -1,6 +1,6 @@
 # Data handling
 
-Jevusher runs locally but uses TypeSafe's hosted JEV model. Local execution does
+jev-usher runs locally but uses TypeSafe's hosted JEV model. Local execution does
 not make its judgments local inference.
 
 ## What is sent
@@ -39,7 +39,7 @@ Settings installation creates a local backup of existing settings before editing
 and keeps it beside the settings file. Settings may themselves contain private
 configuration; review backups before sharing a project.
 
-When filtering is enabled, Jevusher saves captured user prompts in its local
+When filtering is enabled, jev-usher saves captured user prompts in its local
 session state and original filtered tool text in recovery files under
 `JEVUSHER_HOME`. These contain content, unlike the counts-only ledger. Prompts
 are used for up to 24 hours after the last captured prompt and capped at 8 KB per
@@ -63,7 +63,7 @@ automatically when you open the UI.
 
 JEV receives the synthetic text being evaluated. A paired Claude test sends its
 synthetic task through the installed official CLI, using that CLI's saved login.
-Jevusher does not extract or copy authentication tokens. The comparison disables
+jev-usher does not extract or copy authentication tokens. The comparison disables
 session persistence and uses an isolated temporary workspace and test settings.
 Temporary test files are removed after each run completes or is cancelled;
 an abrupt process or machine crash can leave temporary files for manual cleanup.

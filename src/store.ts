@@ -7,6 +7,7 @@ import type { Candidate } from "./types.js";
 import type { Capability } from "./gate.js";
 
 export function jevusherHome(): string {
+  // Preserve the existing namespace so upgrades retain caches and recovery guards.
   return process.env.JEVUSHER_HOME ?? join(homedir(), ".claude", "jevusher");
 }
 

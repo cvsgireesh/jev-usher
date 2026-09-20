@@ -106,7 +106,7 @@ Verdicts: `pass` · `review` · `block` · `unavailable`
 ## Client
 
 ```ts
-new Jevusher({
+new JevUsher({
   apiKey,          // default: JEV_API_KEY, then TYPESAFE_API_KEY
   baseUrl,         // default https://api.typesafe.ai/v1
   model,           // default jev-1.13.0
@@ -120,31 +120,37 @@ new Jevusher({
 ## CLI
 
 ```bash
-jevusher install [--global]    wire the Claude Code hooks
-jevusher uninstall [--global]  remove only Jevusher hooks
-jevusher doctor                key, connectivity, store contents
-jevusher report                estimated selected volume and JEV usage
-jevusher ui [--port 4318]       local test UI on 127.0.0.1
-jevusher claude [--no-route] [--model MODEL] "prompt" [-- Claude options]
+jev-usher install [--global]    wire the Claude Code hooks
+jev-usher uninstall [--global]  remove only jev-usher hooks
+jev-usher doctor                key, connectivity, store contents
+jev-usher report                estimated selected volume and JEV usage
+jev-usher ui [--port 4318]       local test UI on 127.0.0.1
+jev-usher claude [--no-route] [--model MODEL] "prompt" [-- Claude options]
 
-jevusher hook <event>          user-prompt-submit | pre-tool-use | post-tool-use | stop
-jevusher route|admit|gate|screen|stop|compact    JSON in, JSON out
+jev-usher hook <event>          user-prompt-submit | pre-tool-use | post-tool-use | stop
+jev-usher route|admit|gate|screen|stop|compact    JSON in, JSON out
 ```
 
 ```bash
-echo '{"goal":"g","candidates":[{"id":"a","text":"..."}]}' | node bin/jevusher.mjs admit
-echo '{"turn":"rename the getter"}' | node bin/jevusher.mjs route
+echo '{"goal":"g","candidates":[{"id":"a","text":"..."}]}' | node bin/jev-usher.mjs admit
+echo '{"turn":"rename the getter"}' | node bin/jev-usher.mjs route
 ```
 
 The examples above run from a built checkout. See [local UI](local-ui.md) and
 [Claude Code setup](claude-code.md) for configuration and privacy boundaries.
 
+The canonical package and command are `jev-usher`; the main TypeScript class is
+`JevUsher`. The `jevusher` command and earlier `Jevusher`, `JevusherConfig`, and
+`JevusherError` exports remain compatibility aliases. Existing `JEVUSHER_*`
+environment variables and the `~/.claude/jevusher` storage directory retain
+their names so saved recovery references continue to work.
+
 ## Optional decision cache
 
 ```ts
-import { DecisionCache, JevClient, Jevusher } from "jevusher";
+import { DecisionCache, JevClient, JevUsher } from "jev-usher";
 const provider = new DecisionCache(new JevClient(), { maxEntries: 128, ttlMs: 60_000 });
-const usher = new Jevusher({ provider });
+const usher = new JevUsher({ provider });
 ```
 
 The in-memory cache requires a pinned model such as `jev-1.13.0`. Its key hashes

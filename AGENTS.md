@@ -1,6 +1,6 @@
-# Working on Jevusher
+# Working on jev-usher
 
-Jevusher is a TypeScript library, Claude Code launcher and command-hook adapter,
+jev-usher is a TypeScript library, Claude Code launcher and command-hook adapter,
 and local test UI for model routing and context admission with TypeSafe JEV. Read [README.md](README.md) for
 the supported behavior and [docs/architecture.md](docs/architecture.md) for the
 provider, policy, and caller boundaries.
@@ -66,6 +66,8 @@ test data. Save generated results outside the repository.
 - Distinguish estimated text reduction, actual model usage, task correctness,
   API cost estimates, and subscription allowance. Do not label estimates as
   measured savings.
+- Keep the legacy `JEVUSHER_*` environment variables and private storage paths
+  compatible. Renaming the public package must not break recovery references.
 - Keep API keys, run outputs, private notes, test transcripts, and development
   narratives out of Git. Commit executable tests and synthetic fixtures.
 

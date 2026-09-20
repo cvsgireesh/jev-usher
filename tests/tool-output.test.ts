@@ -28,7 +28,7 @@ describe('native output adapters', () => {
   it('never inserts marker strings into returned file paths', () => {
     const response = { filenames: ['a.ts', 'b.ts', 'c.ts'], numFiles: 3, truncated: false, totalMatches: 3, countIsComplete: true, durationMs: 1 };
     const output = toolOutput({ tool_name: 'Glob', tool_response: response });
-    expect(output?.replace('a.ts\n[jevusher: omitted]\nc.ts', 1)).toEqual({ ...response, filenames: ['a.ts', 'c.ts'], numFiles: 2, truncated: true });
+    expect(output?.replace('a.ts\n[jev-usher: omitted]\nc.ts', 1)).toEqual({ ...response, filenames: ['a.ts', 'c.ts'], numFiles: 2, truncated: true });
     expect(toolOutput({ tool_name: 'Glob', tool_response: { ...response, filenames: ['a\nb'] } })).toBeNull();
   });
 

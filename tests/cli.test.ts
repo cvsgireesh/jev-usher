@@ -57,9 +57,19 @@ describe("global settings installation", () => {
     expect(installed.hooks.UserPromptSubmit).toHaveLength(2);
     expect(installed.hooks.PreToolUse[0].matcher).toBe("^(Edit|Write)$");
     expect(installed.hooks.PostToolUse[0].matcher).toContain("Bash");
+    expect(installed.hooks.PostToolUse[0].hooks[0].command).toContain("bin/jev-usher.mjs");
     expect(await main(["uninstall", "--global"])).toBe(0);
     expect(JSON.parse(await readFile(target, "utf8"))).toEqual(original);
     expect(await readFile(untouched, "utf8")).toBe('{"untouched":true}');
     expect(fetch).not.toHaveBeenCalled();
   });
+});
+
+it("advertises the new command while retaining the existing configuration namespace", async () => {
+  const write = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+  expect(await main(["--help"])).toBe(0);
+  const help = write.mock.calls.flat().join("");
+  expect(help).toContain("jev-usher claude");
+  expect(help).toContain("JEVUSHER_HOME      default ~/.claude/jevusher");
+  expect(help).not.toContain("jevusher claude");
 });

@@ -13,8 +13,8 @@ See [AGENTS.md](AGENTS.md) for the code map and implementation boundaries.
 
 ## Report a problem or propose a change
 
-Use [GitHub issues](https://github.com/cvsgireesh/jevusher/issues) for reproducible
-bugs and concrete use cases. Include Jevusher, Node, and Claude versions when
+Use [GitHub issues](https://github.com/cvsgireesh/jev-usher/issues) for reproducible
+bugs and concrete use cases. Include jev-usher, Node, and Claude versions when
 relevant. A small synthetic input with expected and actual behavior is more useful
 than a private transcript. Use [SECURITY.md](SECURITY.md) for sensitive reports.
 
@@ -34,8 +34,8 @@ from an actual `npm pack` artifact before a release. Validate the plugin with
 For optional live synthetic checks:
 
 ```bash
-npm run eval:live -- --live --out /tmp/jevusher-evaluation.json
-npm run eval:claude -- --live --out /tmp/jevusher-claude.json
+npm run eval:live -- --live --out /tmp/jev-usher-evaluation.json
+npm run eval:claude -- --live --out /tmp/jev-usher-claude.json
 ```
 
 This uses a TypeSafe key from the environment and has an explicit request budget.

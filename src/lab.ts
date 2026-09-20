@@ -81,7 +81,7 @@ export async function runLab(options: LabOptions): Promise<Record<string, unknow
         : 'Preview only: these are JEV decisions, not a completed Claude task. Run a comparison to check the actual model, tool result, answer, and usage.' },
     };
   }
-  const directory = await mkdtemp(join(await realpath(tmpdir()), 'jevusher-lab-'));
+  const directory = await mkdtemp(join(await realpath(tmpdir()), 'jev-usher-lab-'));
   try {
     await prepareLabFiles(scenario, directory);
     const wrapper = join(directory, 'hook.mjs');
@@ -102,7 +102,7 @@ export async function runLab(options: LabOptions): Promise<Record<string, unknow
     const order: ('baseline' | 'filtered')[] = options.filteredFirst ? ['filtered', 'baseline'] : ['baseline', 'filtered'];
     for (const variant of order) {
       if (signal.aborted) throw new Error('Run cancelled.');
-      phase(variant === 'baseline' ? `Claude is running the baseline with ${baselineModel}.` : `Claude is running with Jevusher (${routing?.selectedModel ?? baselineModel}).`);
+      phase(variant === 'baseline' ? `Claude is running the baseline with ${baselineModel}.` : `Claude is running with jev-usher (${routing?.selectedModel ?? baselineModel}).`);
       results[variant] = await runClaude(scenario, directory, variant === 'filtered' ? settings : baselineSettings,
         options.apiKey, signal, variant === 'filtered' ? routing?.selectedModel ?? baselineModel : baselineModel,
         variant === 'filtered' && contextEnabled, variant);

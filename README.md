@@ -1,15 +1,24 @@
-# Jevusher — model routing and context admission for Claude Code
+# jev-usher — model routing and context admission for Claude Code
 
-**The doorman for your context window.**
+**26 live paired comparisons passed: 13 synthetic tasks tested with filtering
+alone and with routing plus filtering.**
 
-Jevusher uses TypeSafe's JEV model to choose a Claude model for a new session and
-select useful tool output before Claude reads it. It provides a Claude Code
-launcher and plugin, a TypeScript library, and a local test UI for comparing
-model selection, context filtering, or both.
+The doorman for your context window. jev-usher routes clear tasks to a suitable
+Claude model and filters noisy tool output, with originals kept for recovery.
+TypeSafe's JEV judges relevance; deterministic rules decide what to send.
 
-Use it when tools return more text than a task needs. JEV scores relevance;
-Jevusher applies budgets and failure rules. Keep the original available, then
-measure whether the smaller input still lets Claude complete the task.
+| Mode | Whole-run Claude tokens, without → with | Lower / unchanged / higher |
+|---|---|---|
+| Filtering; Sonnet on both sides | 105,067 → 101,792 (**3.1% fewer**) | 4 / 7 / 2 |
+| Routing + filtering; Sonnet baseline | 105,098 → 102,650 (**2.3% fewer**) | 6 / 5 / 2 |
+
+Totals include input, output, and cache tokens. All 52 answers passed the task
+checks, but the median token change was zero in both modes. Recovery increased
+usage in four pairs. These are single-pass synthetic results, not a savings or
+reliability guarantee. [Results and reproduction](docs/results.md).
+
+Try it with the local comparison UI, launch a Claude Code session, or use the
+TypeScript library in your own agent.
 
 ```text
 original tool output → JEV judgments → deterministic policy → selected context
@@ -30,20 +39,22 @@ and Claude Code 2.1.278 or newer signed in to your subscription for paired tests
 Use a current Node 22 or 24 release to develop. Offline tests need no API key.
 
 ```bash
-git clone https://github.com/cvsgireesh/jevusher.git
-cd jevusher
+git clone https://github.com/cvsgireesh/jev-usher.git
+cd jev-usher
 npm ci
 npm run check
 export JEV_API_KEY='your-typesafe-key'
-node bin/jevusher.mjs ui
+node bin/jev-usher.mjs ui
 ```
 
-Open `http://127.0.0.1:4318`. Choose a synthetic scenario and baseline Claude model,
-then compare context filtering, model routing, or both. The default compares
-Sonnet against combined routing and filtering. Inspect the JEV preview before
-running the paired Claude test.
-The UI starts no model calls until you run a test. JEV calls spend TypeSafe
-credits; paired Claude tests consume your subscription allowance.
+Open `http://127.0.0.1:4318`. Choose a task and a baseline Claude model, then click
+**Run comparison**. Read **Without jev-usher** and **With jev-usher** side by side,
+with token counts, elapsed time, and estimated JEV cost below. The baseline
+defaults to Sonnet; jev-usher uses automatic model routing and context filtering.
+Connection setup and technical details stay collapsed until you need them.
+
+The UI starts no model calls until you run a comparison. JEV calls spend TypeSafe
+credits; the two Claude runs consume your subscription allowance.
 
 The UI runs on your computer. JEV judgments still use TypeSafe's hosted API, and
 Claude requests use Anthropic's service. Read the [local UI guide](docs/local-ui.md)
@@ -54,7 +65,7 @@ and [data handling](docs/privacy.md) for the exact boundary.
 Start a new Claude session with automatic model routing and recoverable filtering:
 
 ```bash
-node /absolute/path/to/jevusher/bin/jevusher.mjs claude "Find the cause of the retry failure"
+node /absolute/path/to/jev-usher/bin/jev-usher.mjs claude "Find the cause of the retry failure"
 ```
 
 JEV judges the launch prompt and selects Haiku, Sonnet, or Opus when confident.
@@ -65,7 +76,7 @@ model selection. Routing applies at session start and does not change models
 between turns. Pass Claude options after `--`:
 
 ```bash
-node /absolute/path/to/jevusher/bin/jevusher.mjs claude "Continue the investigation" -- --continue
+node /absolute/path/to/jev-usher/bin/jev-usher.mjs claude "Continue the investigation" -- --continue
 ```
 
 Set `JEVUSHER_FILTER=0` to keep launcher routing while disabling output filtering.
@@ -73,14 +84,14 @@ Set `JEVUSHER_FILTER=0` to keep launcher routing while disabling output filterin
 To use Claude directly, load the checkout as a plugin:
 
 ```bash
-claude --plugin-dir /absolute/path/to/jevusher
+claude --plugin-dir /absolute/path/to/jev-usher
 ```
 
 Or install settings hooks in the project where you want them:
 
 ```bash
-node /absolute/path/to/jevusher/bin/jevusher.mjs install
-node /absolute/path/to/jevusher/bin/jevusher.mjs doctor
+node /absolute/path/to/jev-usher/bin/jev-usher.mjs install
+node /absolute/path/to/jev-usher/bin/jev-usher.mjs doctor
 ```
 
 Choose one method to avoid duplicate hooks. Settings hooks use the installed local
@@ -92,12 +103,12 @@ memory inputs, filtering, and recovery.
 ## TypeScript example
 
 After building, install the checkout into your application with
-`npm install /absolute/path/to/jevusher`:
+`npm install /absolute/path/to/jev-usher`:
 
 ```ts
-import { Jevusher } from "jevusher";
+import { JevUsher } from "jev-usher";
 
-const usher = new Jevusher();
+const usher = new JevUsher();
 const result = await usher.usher.admit({
   goal: "Find the widget service retry limit",
   candidates: [
@@ -173,17 +184,17 @@ use the selected text.
 npm run check          # offline tests, typecheck, and build
 npm run test:package   # install and exercise a packed artifact
 # Optional paid evaluation with synthetic fixtures:
-npm run eval:live -- --live --out /tmp/jevusher-evaluation.json
-npm run eval:claude -- --live --out /tmp/jevusher-claude.json
+npm run eval:live -- --live --out /tmp/jev-usher-evaluation.json
+npm run eval:claude -- --live --out /tmp/jev-usher-claude.json
 ```
 
 Read [Contributing](CONTRIBUTING.md) or [agent instructions](AGENTS.md) to work on
 the repository. Report a reproducible problem through
-[GitHub issues](https://github.com/cvsgireesh/jevusher/issues). Keep credentials,
+[GitHub issues](https://github.com/cvsgireesh/jev-usher/issues). Keep credentials,
 private transcripts, and generated test reports out of issues and commits.
 
 [Local UI](docs/local-ui.md) · [Claude Code](docs/claude-code.md) ·
-[API reference](docs/reference.md) · [Privacy](docs/privacy.md) ·
+[Results](docs/results.md) · [API reference](docs/reference.md) · [Privacy](docs/privacy.md) ·
 [Security](SECURITY.md) · [Documentation index for agents](llms.txt)
 
 Independent project; not affiliated with or endorsed by TypeSafe or Anthropic.

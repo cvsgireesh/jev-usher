@@ -1,7 +1,7 @@
 {
-  "name": "jevusher",
+  "name": "jev-usher",
   "version": "0.1.0",
-  "description": "The doorman for your context window. Jev-powered admission control: decide which tokens are worth sending to an expensive model.",
+  "description": "JEV-powered model routing and recoverable context filtering for Claude Code, with a local comparison UI.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -28,6 +28,7 @@
     "docs/local-ui.md",
     "docs/privacy.md",
     "docs/reference.md",
+    "docs/results.md",
     "hooks",
     "ui",
     ".claude-plugin"
@@ -58,11 +59,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cvsgireesh/jevusher.git"
+    "url": "git+https://github.com/cvsgireesh/jev-usher.git"
   },
-  "homepage": "https://github.com/cvsgireesh/jevusher#readme",
+  "homepage": "https://github.com/cvsgireesh/jev-usher#readme",
   "bugs": {
-    "url": "https://github.com/cvsgireesh/jevusher/issues"
+    "url": "https://github.com/cvsgireesh/jev-usher/issues"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -71,6 +72,7 @@
     "vitest": "^4.1.11"
   },
   "bin": {
+    "jev-usher": "./bin/jev-usher.mjs",
     "jevusher": "./bin/jevusher.mjs"
   }
 }

@@ -5,413 +5,233 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Test Jevusher's context admission with live JEV and your local Claude Code subscription."
+      content="Compare Claude with and without jev-usher. See the answers, tokens used, and time taken."
     />
     <meta name="color-scheme" content="light" />
-    <title>Jevusher · Local test workbench</title>
+    <title>jev-usher · Compare</title>
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23254edb'/%3E%3Cpath d='M12 12h16v16H12m8-16v16' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%233b4ccd'/%3E%3Cpath d='M12 12h16v16H12m8-16v16' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E"
     />
     <link rel="stylesheet" href="/styles.css" />
     <script type="module" src="/app.js"></script>
   </head>
   <body>
-    <a class="skip-link" href="#workbench">Skip to workbench</a>
+    <a class="skip-link" href="#comparison-controls">Skip to comparison</a>
     <header class="site-header">
-      <a class="wordmark" href="/" aria-label="Jevusher home">
-        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M7 7h18v18H7M17 7v18" />
-        </svg>
-        jevusher<span class="wordmark-dot">.</span>
-      </a>
-      <div class="header-meta">
-        <span class="local-dot" aria-hidden="true"></span> Local test workbench
-      </div>
-      <a
-        class="repo-link"
-        href="https://github.com/cvsgireesh/jevusher"
-        target="_blank"
-        rel="noopener noreferrer"
-        >GitHub <span aria-hidden="true">↗</span></a
+      <a class="wordmark" href="/" aria-label="jev-usher home"
+        ><svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M7 7h18v18H7M17 7v18" /></svg
+        >jev-usher<span>.</span></a
       >
-    </header>
-
-    <main>
-      <section class="intro" aria-labelledby="page-title">
-        <div>
-          <p class="eyebrow">Admission control for your context</p>
-          <h1 id="page-title">Let useful context<br />through.</h1>
-        </div>
-        <p class="intro-copy">
-          See what JEV admits. Then give Claude the same task with and without
-          Jevusher, and compare the answers and recorded usage.
-        </p>
-      </section>
-
-      <section class="connections" aria-label="Connections">
-        <div class="connection">
-          <span class="status-dot" id="jev-dot" aria-hidden="true"></span>
-          <div>
-            <span class="connection-label">JEV</span
-            ><span id="jev-status">Checking connection…</span>
-          </div>
-          <button
-            class="text-button"
-            id="key-toggle"
-            aria-expanded="false"
-            aria-controls="key-panel"
-          >
-            Configure key
-          </button>
-        </div>
-        <div class="connection">
-          <span class="status-dot" id="claude-dot" aria-hidden="true"></span>
-          <div>
-            <span class="connection-label">Claude Code</span
-            ><span id="claude-status">Checking local installation…</span>
-          </div>
-          <button
-            class="text-button"
-            id="refresh-status"
-            aria-label="Refresh connection status"
-          >
-            Refresh
-          </button>
-        </div>
-      </section>
-
-      <section
-        class="key-panel"
-        id="key-panel"
-        aria-labelledby="key-heading"
-        hidden
-      >
-        <div>
-          <h2 id="key-heading">Connect your JEV key</h2>
-          <p>
-            The key stays in this local server's memory until it stops. It is
-            never saved in your browser.
-          </p>
-        </div>
-        <form id="key-form">
-          <label class="sr-only" for="api-key">JEV API key</label>
-          <input
-            id="api-key"
-            type="password"
-            placeholder="Paste your JEV API key"
-            autocomplete="off"
-            spellcheck="false"
-            required
-          />
-          <button class="button button-secondary" id="save-key" type="submit">
-            Use key
-          </button>
-        </form>
-        <p class="field-message" id="key-message" role="status"></p>
-        <button
-          class="text-button clear-key"
-          id="clear-key"
-          type="button"
-          hidden
+      <div class="header-links">
+        <span id="connection-status" role="status">Checking connections…</span
+        ><a
+          href="https://github.com/cvsgireesh/jev-usher"
+          target="_blank"
+          rel="noopener noreferrer"
+          >GitHub ↗</a
         >
-          Remove key from this session
-        </button>
-      </section>
-
-      <p class="global-error" id="global-error" role="alert" hidden></p>
-
-      <section
-        class="workbench"
-        id="workbench"
-        aria-labelledby="workbench-title"
-      >
-        <div class="section-heading">
-          <h2 id="workbench-title">Try a real decision</h2>
-          <span class="small-label">Synthetic fixtures · live models</span>
-        </div>
-        <div class="test-controls">
-          <div class="scenario-control">
-            <label for="scenario">Test scenario</label
-            ><select id="scenario" disabled>
-              <option>Loading scenarios…</option>
-            </select>
-            <p id="scenario-description"></p>
+      </div>
+    </header>
+    <main>
+      <div class="page-heading">
+        <h1>Compare jev-usher</h1>
+        <p>One task. With and without jev-usher.</p>
+      </div>
+      <details class="setup" id="connection-setup">
+        <summary>Connection setup</summary>
+        <div class="setup-body">
+          <div class="setup-status">
+            <p id="jev-status">Checking JEV…</p>
+            <p id="claude-status">Checking Claude…</p>
+            <button class="text-button" id="refresh-status" type="button">
+              Refresh connections
+            </button>
           </div>
-          <div class="run-controls">
-            <div class="run-buttons">
-              <button class="button button-secondary" id="run-preview" disabled>
-                Preview with JEV</button
-              ><button class="button button-primary" id="run-compare" disabled>
-                Compare with Claude <span aria-hidden="true">→</span>
+          <form id="key-form">
+            <label for="api-key">JEV API key</label>
+            <div class="key-controls">
+              <input
+                id="api-key"
+                type="password"
+                autocomplete="off"
+                placeholder="Paste your key"
+                spellcheck="false"
+                required
+              /><button class="button secondary" id="save-key" type="submit">
+                Use key
               </button>
             </div>
-            <p id="spend-note">
-              Preview uses JEV credits. Compare also runs Claude twice using
-              your subscription.
-            </p>
-          </div>
-        </div>
-
-        <div class="test-settings">
-          <div class="setting-control">
-            <label for="baseline-model">Baseline Claude model</label>
-            <select id="baseline-model">
-              <option value="sonnet" selected>Sonnet</option>
-              <option value="opus">Opus</option>
-              <option value="haiku">Haiku</option>
-            </select>
-          </div>
-          <div class="setting-control">
-            <label for="optimization">Optimize</label>
-            <select id="optimization">
-              <option value="combined" selected>Model + context</option>
-              <option value="context">Context only</option>
-              <option value="routing">Model only</option>
-            </select>
-          </div>
-          <p id="optimization-hint">
-            Compare a fixed Claude model against JEV's model choice and context
-            selection.
+          </form>
+          <p class="muted">
+            Your key stays in this local server’s memory. It is never saved in
+            your browser.
           </p>
-        </div>
-
-        <div class="task-prompt">
-          <span class="small-label">The task Claude will receive</span>
-          <p id="task-prompt">
-            Choose a scenario to inspect its prompt and source.
-          </p>
-        </div>
-
-        <div class="admission" aria-labelledby="admission-title">
-          <div class="admission-heading">
-            <h3 id="admission-title">Context admission</h3>
-            <span class="small-label" id="admission-caption"
-              >Waiting for a preview</span
-            >
-          </div>
-          <div class="admission-strip" id="admission-strip" aria-hidden="true">
-            <div class="strip-before">
-              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i
-              ><i></i><i></i><i></i>
-            </div>
-            <div class="strip-gate"><span>JEV</span></div>
-            <div class="strip-after is-pending">
-              <i></i><i></i><i></i><i></i>
-            </div>
-          </div>
-          <dl class="admission-metrics">
-            <div>
-              <dt>Offered</dt>
-              <dd id="metric-offered">—<span>estimated tokens</span></dd>
-            </div>
-            <div>
-              <dt>Admitted</dt>
-              <dd id="metric-admitted">—<span>estimated tokens</span></dd>
-            </div>
-            <div>
-              <dt>Recovered</dt>
-              <dd id="metric-recovered">—<span>estimated tokens</span></dd>
-            </div>
-            <div class="metric-judgment">
-              <dt>What this measures</dt>
-              <dd>
-                Context size<span id="quality-note"
-                  >Task quality still needs a Claude comparison.</span
-                >
-              </dd>
-            </div>
-          </dl>
-          <p class="admission-scope" id="admission-scope">
-            Source estimates only. Claude's full requests are measured
-            separately.
-          </p>
-        </div>
-
-        <div class="source-toolbar">
-          <h3>Inspect the source</h3>
-          <button
-            class="text-button"
-            id="source-toggle"
-            aria-expanded="false"
-            aria-controls="source-content"
-          >
-            Show source <span aria-hidden="true">↓</span>
+          <p id="key-message" role="status"></p>
+          <button class="text-button" id="clear-key" type="button" hidden>
+            Remove saved key
           </button>
         </div>
-        <div class="source-content" id="source-content" hidden>
-          <div id="source-items"></div>
-          <p class="source-note" id="source-note">
-            These fixtures contain synthetic data. JEV receives the prompt and
-            source when you run a test.
-          </p>
-        </div>
-
-        <div
-          class="run-progress"
-          id="run-progress"
-          role="status"
-          aria-live="polite"
-          hidden
-        >
-          <span class="spinner" aria-hidden="true"></span
-          ><span id="run-phase">Starting…</span
-          ><span class="elapsed" id="run-elapsed"></span
-          ><button class="text-button" id="cancel-run">Cancel test</button>
-        </div>
-      </section>
-
+      </details>
+      <p class="error-message" id="global-error" role="alert" hidden></p>
       <section
-        class="results"
-        id="results"
-        aria-labelledby="results-title"
+        class="controls"
+        id="comparison-controls"
+        aria-label="Choose a comparison"
+      >
+        <div class="scenario-control">
+          <label for="scenario">What would you like to test?</label
+          ><select id="scenario" disabled>
+            <option>Loading scenarios…</option>
+          </select>
+        </div>
+        <div>
+          <label for="baseline-model">Baseline Claude model</label
+          ><select id="baseline-model">
+            <option value="sonnet" selected>Sonnet</option>
+            <option value="opus">Opus</option>
+            <option value="haiku">Haiku</option>
+          </select>
+        </div>
+        <button class="button primary" id="run-compare" type="button" disabled>
+          Run comparison <span aria-hidden="true">→</span>
+        </button>
+        <p class="scenario-description" id="scenario-description"></p>
+      </section>
+      <div
+        class="run-progress"
+        id="run-progress"
+        role="status"
+        aria-live="polite"
         hidden
       >
-        <div class="section-heading">
-          <h2 id="results-title">The result</h2>
-          <div class="result-actions">
-            <span class="small-label" id="result-mode"></span
-            ><button class="text-button" id="download-report">
+        <span class="spinner" aria-hidden="true"></span
+        ><span id="run-phase">Starting comparison…</span
+        ><span id="run-elapsed"></span
+        ><button class="text-button" id="cancel-run" type="button">
+          Cancel
+        </button>
+      </div>
+      <section class="comparison-grid" aria-label="Answers side by side">
+        <article class="answer-card" aria-labelledby="baseline-title">
+          <header>
+            <div>
+              <h2 id="baseline-title">Without jev-usher</h2>
+              <p class="model-label" id="baseline-model-label">Sonnet</p>
+            </div>
+            <span class="answer-status" id="baseline-status">Ready</span>
+          </header>
+          <div
+            class="answer-body"
+            id="baseline-output"
+            tabindex="0"
+            role="region"
+            aria-labelledby="baseline-title"
+          >
+            <p class="empty-answer">Claude’s answer will appear here.</p>
+          </div>
+        </article>
+        <article
+          class="answer-card with-jev-usher"
+          aria-labelledby="filtered-title"
+        >
+          <header>
+            <div>
+              <h2 id="filtered-title">With jev-usher</h2>
+              <p class="model-label" id="filtered-model-label">
+                Automatic model choice
+              </p>
+            </div>
+            <span class="answer-status" id="filtered-status">Ready</span>
+          </header>
+          <div
+            class="answer-body"
+            id="filtered-output"
+            tabindex="0"
+            role="region"
+            aria-labelledby="filtered-title"
+          >
+            <p class="empty-answer">The same task, using jev-usher.</p>
+          </div>
+        </article>
+      </section>
+      <section class="metrics-section" aria-labelledby="metrics-heading">
+        <div class="metrics-heading">
+          <h2 id="metrics-heading">The difference</h2>
+          <p id="result-summary" role="status">
+            Run a comparison to see what changes.
+          </p>
+        </div>
+        <div class="metrics-grid">
+          <article class="metric" id="tokens-card">
+            <h3>Claude tokens</h3>
+            <strong id="tokens-change">—</strong>
+            <p id="tokens-values">Without — · With —</p>
+          </article>
+          <article class="metric" id="time-card">
+            <h3>Time taken</h3>
+            <strong id="time-change">—</strong>
+            <p id="time-values">Without — · With —</p>
+          </article>
+          <article class="metric" id="quality-card">
+            <h3>Answer checks</h3>
+            <strong id="quality-change">—</strong>
+            <p id="quality-values">Without — · With —</p>
+          </article>
+        </div>
+        <p class="measurement-note">
+          Tokens include the complete runs and cached input. Lower usage does
+          not directly measure subscription savings.<span id="jev-cost"></span>
+        </p>
+      </section>
+      <details class="technical-details" id="technical-details">
+        <summary>Technical details</summary>
+        <div class="technical-body">
+          <p id="comparison-method">
+            Each comparison runs Claude twice on sample data. jev-usher can
+            select a model and filter context. Run order alternates between
+            comparisons.
+          </p>
+          <p id="detail-summary"></p>
+          <dl id="usage-details"></dl>
+          <div class="technical-heading">
+            <h3>Task sent to Claude</h3>
+            <button
+              class="text-button"
+              id="download-report"
+              type="button"
+              disabled
+            >
               Download report
             </button>
           </div>
-        </div>
-        <div class="verdict" id="verdict" role="status">
-          <span class="verdict-symbol" id="verdict-symbol" aria-hidden="true"
-            >·</span
-          >
-          <div>
-            <h3 id="verdict-title">Preview complete</h3>
-            <p id="verdict-summary"></p>
-          </div>
-        </div>
-        <section
-          class="routing-result"
-          id="routing-result"
-          aria-labelledby="routing-heading"
-          hidden
-        >
-          <div class="routing-choice">
-            <h3 id="routing-heading">Model choice</h3>
-            <p>
-              <span id="routing-baseline">—</span
-              ><span class="routing-arrow" aria-hidden="true">→</span
-              ><strong id="routing-selected">—</strong>
-            </p>
-          </div>
-          <div class="routing-explanation">
-            <span class="small-label" id="routing-status"></span>
-            <p id="routing-reason"></p>
-          </div>
-          <dl class="routing-metrics">
-            <div>
-              <dt>Confidence</dt>
-              <dd id="routing-confidence">—</dd>
-            </div>
-            <div>
-              <dt>Routing JEV cost</dt>
-              <dd id="routing-cost">—</dd>
-            </div>
-          </dl>
-          <details class="routing-details">
-            <summary>Inspect routing</summary>
-            <dl>
-              <div>
-                <dt>Task tier</dt>
-                <dd id="routing-tier">—</dd>
-              </div>
-              <div>
-                <dt>JEV requests</dt>
-                <dd id="routing-requests">—</dd>
-              </div>
-              <div>
-                <dt>JEV input tokens</dt>
-                <dd id="routing-tokens">—</dd>
-              </div>
-              <div>
-                <dt>Routing elapsed</dt>
-                <dd id="routing-latency">—</dd>
-              </div>
-            </dl>
-            <p>
-              Confidence is a model judgment, not a guarantee that the selected
-              Claude model will complete the task.
-            </p>
+          <pre
+            id="task-prompt"
+            tabindex="0"
+            aria-label="Task sent to Claude"
+          ></pre>
+          <details>
+            <summary>Sample source</summary>
+            <pre id="source-text" tabindex="0" aria-label="Sample source"></pre>
           </details>
-        </section>
-        <div class="jev-cost">
-          <span
-            ><b id="jev-model">JEV</b
-            ><span
-              class="availability-label"
-              id="jev-availability"
-              hidden
-            ></span></span
-          ><span><b id="jev-requests">—</b> requests</span
-          ><span><b id="jev-tokens">—</b> input tokens</span
-          ><span><b id="jev-latency">—</b> elapsed</span
-          ><span
-            ><b id="jev-cost">—</b>
-            <span id="jev-cost-label">estimated JEV cost</span></span
-          >
+          <details id="raw-result" hidden>
+            <summary>Full recorded result</summary>
+            <pre
+              id="result-json"
+              tabindex="0"
+              aria-label="Full recorded result"
+            ></pre>
+          </details>
         </div>
-        <div id="comparison" hidden>
-          <div class="comparison-order">
-            <p>
-              <span class="small-label">Run order</span
-              ><span id="comparison-order">Unavailable</span>
-            </p>
-            <p>
-              The second run may reuse cached context. Repeat comparisons to see
-              whether the result holds in the reverse order.
-            </p>
-          </div>
-          <div class="comparison-grid">
-            <article class="answer-column">
-              <div class="answer-heading">
-                <h3>Claude alone</h3>
-                <span class="small-label" id="baseline-source-label"
-                  >Full source</span
-                >
-              </div>
-              <p class="answer-model" id="baseline-model-label"></p>
-              <div class="answer-checks" id="baseline-checks"></div>
-              <pre class="answer-output" id="baseline-output"></pre>
-              <dl class="usage-list" id="baseline-usage"></dl>
-            </article>
-            <article class="answer-column">
-              <div class="answer-heading">
-                <h3>Claude + Jevusher</h3>
-                <span class="small-label" id="filtered-source-label"
-                  >Admitted source</span
-                >
-              </div>
-              <p class="answer-model" id="filtered-model-label"></p>
-              <div class="answer-checks" id="filtered-checks"></div>
-              <pre class="answer-output" id="filtered-output"></pre>
-              <dl class="usage-list" id="filtered-usage"></dl>
-            </article>
-          </div>
-          <p class="measurement-note">
-            Claude usage comes from these runs. Input, output, cache reads, and
-            cache writes are shown separately. Token reduction is not a
-            measurement of subscription savings, and one fixture does not
-            establish reliability.
-          </p>
-        </div>
-      </section>
-
-      <footer class="page-footer">
-        <p>
-          Your test UI runs locally. Test content goes to TypeSafe for JEV
-          decisions and, during comparisons, to Claude through your signed-in
-          CLI.
-        </p>
+      </details>
+      <footer>
+        Runs locally. Tests use JEV credits and your Claude subscription.
         <a
-          href="https://github.com/cvsgireesh/jevusher#readme"
+          href="https://github.com/cvsgireesh/jev-usher/blob/main/docs/local-ui.md"
           target="_blank"
           rel="noopener noreferrer"
-          >Read the documentation <span aria-hidden="true">↗</span></a
+          >How it works ↗</a
         >
       </footer>
     </main>

@@ -5,12 +5,13 @@ import { record } from "./validation.js";
 
 function ours(handler: unknown): boolean {
   return record(handler) && handler.type === "command" && typeof handler.command === "string" &&
-    (/\bjevusher(?:\.mjs)?['"]? hook (user-prompt-submit|pre-tool-use|post-tool-use|stop)$/.test(handler.command));
+    (/\bjev-?usher(?:\.mjs)?['"]? hook (user-prompt-submit|pre-tool-use|post-tool-use|stop)$/.test(handler.command));
 }
 
 /** Preserve unrelated hooks and settings; refuse malformed input before writing. */
 export async function configureHooks(path: string, command: string, remove = false): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
+  // Share the lock with earlier releases during installation and upgrades.
   const lock = await open(`${path}.jevusher.lock`, "wx", 0o600);
   const temporary = `${path}.${randomUUID()}.tmp`;
   try {
